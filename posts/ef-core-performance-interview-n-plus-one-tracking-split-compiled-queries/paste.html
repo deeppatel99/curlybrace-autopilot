@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>EF Core Performance Interview Questions: N+1, No-Tracking, Split and Compiled Queries</title>
+<meta name="description" content="Twelve questions on N+1, tracking, split and compiled queries, with the answers interviewers expect.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px}
+</style></head><body>
+<div class="banner"><b>Paste-ready.</b> Click inside the article, press Ctrl+A then Ctrl+C, and paste into a new Medium story. Images come along because they are hosted publicly. Delete this yellow box after pasting.</div>
+<article>
+<h1>EF Core Performance Interview Questions: N+1, No-Tracking, Split and Compiled Queries</h1>
+<h2 class="sub">Twelve questions on N+1, tracking, split and compiled queries, with the answers interviewers expect.</h2>
+<p><img alt="EF Core Performance: N+1, Tracking, Split and Compiled Queries" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/01-cover.png" /></p>
+<p>The endpoint was <code>GET /customers/{id}/orders</code>. It had answered in about 80 ms for a year. Then a developer added a <code>Lines</code> navigation property to <code>Order</code> so the response could include an order total. The pull request was eleven lines long and passed review.</p>
+<p>In production, the same endpoint started taking 9 seconds for our largest customers. Smaller customers barely noticed. Support tickets said "the orders page hangs", and the on-call engineer saw no errors, no deadlocks and no CPU spike on the database.</p>
+<p>It took two days to find. Query Store showed nothing slow, because no single query was slow. Every query took about 10 ms, round trip included. There were just 901 of them per request.</p>
+<p>Root cause in one line: lazy loading was enabled, and the DTO mapping touched <code>order.Lines</code> once per order, which turned one query into one plus N.</p>
+<p>After this article, you will be able to explain N+1 queries and how to find them, choose between tracking, no-tracking and identity resolution, explain cartesian explosion and when split queries fix it, and say exactly what compiled queries save and what they do not.</p>
+<h2>Q1. What is the N+1 query problem, and how does it show up in EF Core?</h2>
+<p><strong>What they're actually testing:</strong> Whether you understand that the cost is round trips, not query complexity. They also want to know if you can name the EF Core features that cause it.</p>
+<p><strong>The analogy:</strong> You need 900 items from a warehouse, so you walk to the shelf, bring back one item, walk back for the next, and repeat. Each trip is quick. The day is gone.</p>
+<p><strong>The code:</strong></p>
+<pre>public class Order<br>{<br>    public int Id { get; set; }<br>    public int CustomerId { get; set; }<br>    public string Status { get; set; } = &quot;New&quot;;<br>    public DateTime CreatedAt { get; set; }<br>    public virtual Customer Customer { get; set; } = null!;<br>    public virtual List&lt;OrderLine&gt; Lines { get; set; } = [];<br>    public virtual List&lt;Shipment&gt; Shipments { get; set; } = [];<br>}<br>&nbsp;<br>// 1 query for the orders...<br>var orders = await db.Orders.Where(o =&gt; o.CustomerId == id).ToListAsync(ct);<br>&nbsp;<br>// ...then N more, one per order, when lazy loading is enabled<br>var totals = orders.Select(o =&gt; o.Lines.Sum(l =&gt; l.Price * l.Quantity)).ToList();</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>N+1 is one query to load a list, then one extra query per item to load related data. In EF Core it usually comes from lazy loading, or from explicit loads or extra queries inside a loop. Each query is fast, so nothing looks slow in isolation. The latency comes from N network round trips stacked one after another.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Why did it only hurt some customers?" Because N is data-dependent. A customer with 5 orders makes 6 queries and nobody notices. A customer with 900 orders makes 901. Your test data rarely has the long tail that production has.</p>
+<p><strong>Memory hook:</strong> <em>Fast queries, multiplied by N, make a slow page.</em></p>
+<p><img alt="How 80 ms became 9 s" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/02-gif-flow-1.gif" /></p>
+<hr />
+<h2>Q2. How would you detect N+1 queries in an existing application?</h2>
+<p><strong>What they're actually testing:</strong> Whether you debug with evidence. They want to hear "count the commands per request", not "I would review the code".</p>
+<p><strong>The analogy:</strong> A slow checkout line is not one slow customer. You find it by counting how many times the cashier walks to the back room.</p>
+<p><strong>The code:</strong></p>
+<pre>builder.Services.AddDbContext&lt;AppDbContext&gt;(options =&gt; options<br>    .UseSqlServer(connectionString)<br>    .LogTo(<br>        Console.WriteLine,<br>        [DbLoggerCategory.Database.Command.Name],<br>        LogLevel.Information));<br>&nbsp;<br>// See the SQL for a single LINQ query without running it<br>string sql = db.Orders.Where(o =&gt; o.CustomerId == id).ToQueryString();</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>In development I log the <code>Database.Command</code> category and look for the same SQL repeated with different parameter values. In production I look at the number of SQL dependency calls per request in Application Insights or OpenTelemetry traces, not at query duration. A request with hundreds of near-identical dependency calls is N+1.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Query Store shows no slow queries, so the database is fine, right?" Wrong signal. Query Store aggregates by query, so a fast query executed 900 times per request looks healthy. Look at execution count and per-request call counts instead.</p>
+<p><strong>Memory hook:</strong> <em>Count queries, not milliseconds.</em></p>
+<hr />
+<h2>Q3. How do you fix N+1: <code>Include</code>, projection, or something else?</h2>
+<p><strong>What they're actually testing:</strong> Whether you know that <code>Include</code> is not the only answer, and that projection is often the better one for read endpoints.</p>
+<p><strong>The analogy:</strong> <code>Include</code> brings the whole filing cabinet to your desk. Projection brings a photocopy of the three lines you needed.</p>
+<p><strong>The code:</strong></p>
+<pre>// Option A: eager load full entities (needed if you will modify them)<br>var orders = await db.Orders<br>    .Include(o =&gt; o.Lines)<br>    .Where(o =&gt; o.CustomerId == id)<br>    .ToListAsync(ct);<br>&nbsp;<br>// Option B: project exactly what the endpoint returns<br>var summaries = await db.Orders<br>    .Where(o =&gt; o.CustomerId == id)<br>    .Select(o =&gt; new OrderSummary(o.Id, o.Lines.Sum(l =&gt; l.Price * l.Quantity)))<br>    .ToListAsync(ct);<br>&nbsp;<br>public record OrderSummary(int Id, decimal Total);</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>Both fix N+1 by turning N+1 round trips into one. <code>Include</code> loads full entities and the related rows, which I use when I need entities to update. For read endpoints I prefer a <code>Select</code> projection into a DTO. EF Core translates the aggregate into SQL, fetches only the columns I list, and the result is not tracked.</blockquote>
+<p><strong>The trap / follow-up:</strong> "What happens if you add <code>Include</code> to a query that ends in <code>Select</code>?" If the projection does not return the entity type, the <code>Include</code> is ignored. The projection already decides what gets loaded. Candidates often stack both and assume <code>Include</code> is doing work.</p>
+<p><strong>Memory hook:</strong> <em>Include for writes, Select for reads.</em></p>
+<p><img alt="Loading related data in EF Core" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/03-table-1.png" /></p>
+<p>The animation below walks through the exact change that fixed the endpoint from the opening story.</p>
+<p><img alt="From N+1 to one query" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/04-gif-code-1.gif" /></p>
+<hr />
+<h2>Q4. Should you enable lazy loading in an ASP.NET Core API?</h2>
+<p><strong>What they're actually testing:</strong> Whether you understand that lazy loading hides database calls inside property getters, and why that is risky in request-scoped code.</p>
+<p><strong>The analogy:</strong> A light switch that also orders a pizza. Harmless once. Dangerous when someone flips it in a loop.</p>
+<p><strong>The code:</strong></p>
+<pre>// Opt-in: requires Microsoft.EntityFrameworkCore.Proxies and virtual navigations<br>options.UseSqlServer(connectionString).UseLazyLoadingProxies();<br>&nbsp;<br>// Preferred in APIs: load related data on purpose, where you can see it<br>var order = await db.Orders.SingleAsync(o =&gt; o.Id == id, ct);<br>await db.Entry(order).Collection(o =&gt; o.Lines).LoadAsync(ct);</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>Lazy loading is off by default in EF Core and needs either the Proxies package with virtual navigations or an injected <code>ILazyLoader</code>. I avoid it in APIs because any property access can become a database call, including inside mappers and serializers. I prefer explicit <code>Include</code>, projection, or explicit loading so every query is visible in the code.</blockquote>
+<p><strong>The trap / follow-up:</strong> "What happens if a lazy navigation is accessed after the <code>DbContext</code> is disposed?" EF Core throws an <code>InvalidOperationException</code> by default, because the <code>LazyLoadOnDisposedContextWarning</code> is configured as an error. This often shows up when entities are returned from a service and serialized after the scope ends.</p>
+<p><strong>Memory hook:</strong> <em>If a getter can hit the database, a loop can hit it 900 times.</em></p>
+<hr />
+<h2>Q5. What does change tracking cost, and when do you use <code>AsNoTracking</code>?</h2>
+<p><strong>What they're actually testing:</strong> Whether you know what the change tracker actually stores, not just that "no-tracking is faster".</p>
+<p><strong>The analogy:</strong> Tracking is a librarian who photocopies every book you borrow so they can spot your pencil marks later. If you only came to read, skip the photocopies.</p>
+<p><strong>The code:</strong></p>
+<pre>// Per query<br>var orders = await db.Orders<br>    .AsNoTracking()<br>    .Where(o =&gt; o.CustomerId == id)<br>    .ToListAsync(ct);<br>&nbsp;<br>// Or as the default for a read-heavy context; opt back in with AsTracking()<br>options.UseSqlServer(connectionString)<br>       .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>A tracked query registers every entity in the change tracker, keeps a snapshot of its original values and maintains an identity map so each key maps to one instance. <code>SaveChanges</code> then compares current values with those snapshots. For read-only queries that work is wasted, so I use <code>AsNoTracking</code>, or set no-tracking as the default on contexts that mostly read.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Is a projection into a DTO tracked?" No. Only entity instances are tracked. But if your projection contains an entity, for example <code>new { o.Id, o.Customer }</code>, that <code>Customer</code> is tracked in a tracking query. And never quote a speedup figure you have not measured; say you would benchmark it with BenchmarkDotNet on realistic data.</p>
+<p><strong>Memory hook:</strong> <em>Read-only data does not need a receipt.</em></p>
+<p><img alt="Tracking vs AsNoTracking" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/05-diagram-compare-1.png" /></p>
+<hr />
+<h2>Q6. What is the difference between <code>AsNoTracking</code> and <code>AsNoTrackingWithIdentityResolution</code>?</h2>
+<p><strong>What they're actually testing:</strong> Whether you know that no-tracking queries can return duplicate object instances, and how to get a clean graph without full tracking.</p>
+<p><strong>The analogy:</strong> A guest list where the same person appears on every line they RSVP'd for. Identity resolution merges those lines into one person, without keeping a permanent file on them.</p>
+<p><strong>The code:</strong></p>
+<pre>// Assume both orders belong to the same customer<br>var orders = await db.Orders<br>    .AsNoTracking()<br>    .Include(o =&gt; o.Customer)<br>    .ToListAsync(ct);<br>&nbsp;<br>bool sameInstance = ReferenceEquals(orders[0].Customer, orders[1].Customer); // false<br>&nbsp;<br>var resolved = await db.Orders<br>    .AsNoTrackingWithIdentityResolution()<br>    .Include(o =&gt; o.Customer)<br>    .ToListAsync(ct);<br>// One Customer instance per key; nothing stays tracked after the query</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>Plain <code>AsNoTracking</code> creates a new instance for every row, so a customer shared by 100 orders becomes 100 <code>Customer</code> objects. <code>AsNoTrackingWithIdentityResolution</code>, added in EF Core 5, uses a temporary tracker during the query to return one instance per key, then discards it. I use it for read-only graphs with shared references where duplicate instances waste memory or break reference-based logic.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Is identity resolution free?" No. It does some of the tracker's work during materialization, so it costs more than plain no-tracking. Use it when the graph has real shared references, not by default.</p>
+<p><strong>Memory hook:</strong> <em>No-tracking forgets who is who. Identity resolution remembers until the query ends.</em></p>
+<p><img alt="Query tracking modes" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/06-table-2.png" /></p>
+<hr />
+<h2>Q7. A developer loads an entity with <code>AsNoTracking</code>, changes it and calls <code>SaveChanges</code>. What happens?</h2>
+<p><strong>What they're actually testing:</strong> Whether you understand that <code>SaveChanges</code> only writes what the context is tracking, and whether you know the cost of <code>Update</code>.</p>
+<p><strong>The analogy:</strong> You edit a photocopy of a contract and hand it back. The original in the filing cabinet does not change.</p>
+<p><strong>The code:</strong></p>
+<pre>var order = await db.Orders.AsNoTracking().SingleAsync(o =&gt; o.Id == id, ct);<br>order.Status = &quot;Shipped&quot;;<br>await db.SaveChangesAsync(ct);      // writes nothing: the context never saw this entity<br>&nbsp;<br>// Narrow fix: attach and mark only the changed property<br>db.Orders.Attach(order);<br>db.Entry(order).Property(o =&gt; o.Status).IsModified = true;<br>await db.SaveChangesAsync(ct);      // UPDATE ... SET Status = @p0 WHERE Id = @p1</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>Nothing is saved, and no error is thrown, because the entity is not in the change tracker. For update flows I either load the entity with tracking, or attach it and mark the specific properties as modified. For set-based updates I skip loading entirely and use <code>ExecuteUpdateAsync</code>.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Why not just call <code>db.Orders.Update(order)</code>?" <code>Update</code> marks every property of the entity as modified and also walks reachable navigations, so the SQL updates all columns and can touch related rows you did not intend to change. It can also overwrite another user's changes unless you have a concurrency token.</p>
+<p><strong>Memory hook:</strong> <em>If the context did not see it, SaveChanges will not save it.</em></p>
+<hr />
+<h2>Q8. What is cartesian explosion, and how do you recognize it?</h2>
+<p><strong>What they're actually testing:</strong> Whether you know what SQL <code>Include</code> generates, and why including two collections in one query can return far more rows than you have data.</p>
+<p><strong>The analogy:</strong> Seating every guest at every table to find out who sat where. Correct in the end, but the room is full.</p>
+<p><strong>The code:</strong></p>
+<pre>// One SQL statement with two collection JOINs<br>var orders = await db.Orders<br>    .Include(o =&gt; o.Lines)<br>    .Include(o =&gt; o.Shipments)<br>    .Where(o =&gt; o.CustomerId == id)<br>    .ToListAsync(ct);</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>By default EF Core loads includes in a single SQL query using JOINs. When you include two sibling collections, each parent row is multiplied by the size of both collections. An order with 50 lines and 20 shipments returns 1,000 rows, and the parent's columns repeat on every one. EF Core then deduplicates it all back into objects in memory.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Does EF Core warn you?" Yes. When a query includes more than one collection navigation and no query splitting behavior is configured, EF Core logs <code>MultipleCollectionIncludeWarning</code>. Even a single collection duplicates the parent's columns, which hurts when the parent has wide columns such as large text or JSON.</p>
+<p><strong>Memory hook:</strong> <em>Two collections in one JOIN multiply; they do not add.</em></p>
+<p><img alt="One order, 4 MB on the wire" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/07-diagram-flow-1.png" /></p>
+<hr />
+<h2>Q9. How do split queries work, and what do they cost?</h2>
+<p><strong>What they're actually testing:</strong> Whether you know <code>AsSplitQuery</code> as a targeted tool with real trade-offs, not a setting to turn on everywhere.</p>
+<p><strong>The analogy:</strong> Instead of one giant delivery with every box packed inside every other box, you get three smaller trucks that arrive one after another.</p>
+<p><strong>The code:</strong></p>
+<pre>var orders = await db.Orders<br>    .Include(o =&gt; o.Lines)<br>    .Include(o =&gt; o.Shipments)<br>    .Where(o =&gt; o.CustomerId == id)<br>    .AsSplitQuery()<br>    .ToListAsync(ct);<br>&nbsp;<br>// Or make split the default and opt individual queries back with AsSingleQuery()<br>options.UseSqlServer(connectionString,<br>    sql =&gt; sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote><code>AsSplitQuery</code>, available since EF Core 5, sends one SQL query for the parent rows and one per included collection, each joined back to the same filter. Rows grow by addition instead of multiplication. The costs are extra round trips and no consistency guarantee between the statements, because data can change between them. I use it when a query includes multiple or large collections, and I measure against the single-query version.</blockquote>
+<p><strong>The trap / follow-up:</strong> "What about paging with split queries?" Each split query repeats the <code>Skip</code>/<code>Take</code>, so the ordering must be unique or each statement can pick a different page of parents. Order by a unique key, for example <code>OrderBy(o =&gt; o.CreatedAt).ThenBy(o =&gt; o.Id)</code>. If you need a consistent view across the statements, run them inside a transaction with snapshot or serializable isolation.</p>
+<p><strong>Memory hook:</strong> <em>Split trades row explosion for round trips.</em></p>
+<p><img alt="Single query vs split query" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/08-table-3.png" /></p>
+<hr />
+<h2>Q10. What does a compiled query actually save, and when is it worth it?</h2>
+<p><strong>What they're actually testing:</strong> Whether you know EF Core already caches query translation, so compiled queries remove a smaller, specific cost. Candidates often overstate the benefit.</p>
+<p><strong>The analogy:</strong> A regular customer who orders "the usual". The kitchen already knows the recipe either way; the usual just skips reading the menu and confirming the order.</p>
+<p><strong>The code:</strong></p>
+<pre>public static class OrderQueries<br>{<br>    public static readonly Func&lt;AppDbContext, int, Task&lt;Order?&gt;&gt; ById =<br>        EF.CompileAsyncQuery((AppDbContext db, int id) =&gt;<br>            db.Orders.AsNoTracking().FirstOrDefault(o =&gt; o.Id == id));<br>&nbsp;<br>    public static readonly Func&lt;AppDbContext, int, IAsyncEnumerable&lt;Order&gt;&gt; ByCustomer =<br>        EF.CompileAsyncQuery((AppDbContext db, int customerId) =&gt;<br>            db.Orders.AsNoTracking().Where(o =&gt; o.CustomerId == customerId));<br>}<br>&nbsp;<br>// Usage<br>Order? order = await OrderQueries.ById(db, 42);<br>await foreach (var o in OrderQueries.ByCustomer(db, 7)) { /* ... */ }</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>EF Core caches the SQL translation for each query shape, so a normal LINQ query is not re-translated on every call. It still builds the expression tree, extracts parameters and looks the tree up in the query cache each time. <code>EF.CompileAsyncQuery</code> does that work once and gives me a delegate. The saving is per-call CPU in EF itself, so it only matters on very hot queries, and I would confirm it with a benchmark.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Is that the same as a compiled model?" No. A compiled model, generated with <code>dotnet ef dbcontext optimize</code> since EF Core 6, reduces startup time for large models. Compiled queries reduce per-execution overhead. Also, a compiled query has a fixed shape: you cannot add <code>Where</code> or <code>OrderBy</code> to its result and have it run in SQL.</p>
+<p><strong>Memory hook:</strong> <em>Compiled queries skip the cache lookup, not the database.</em></p>
+<p><img alt="What runs on every EF Core query execution" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/09-diagram-layers-1.png" /></p>
+<hr />
+<h2>Q11. Why can two queries that look the same produce different SQL text, and why does it matter?</h2>
+<p><strong>What they're actually testing:</strong> Whether you understand parameterization at two levels: EF Core's query cache and SQL Server's plan cache. Also whether you can spot SQL injection in raw SQL calls.</p>
+<p><strong>The analogy:</strong> A form with a blank to fill in can be photocopied once. A form with the name pre-printed has to be reprinted for every person.</p>
+<p><strong>The code:</strong></p>
+<pre>// Parameterized: one SQL text, one cached plan, safe from injection<br>var safe = await db.Orders<br>    .FromSql($&quot;SELECT * FROM Orders WHERE Status = {status}&quot;)<br>    .ToListAsync(ct);<br>&nbsp;<br>// Concatenated: new SQL text for every value, and an injection hole<br>// status = &quot;x' OR 1=1 --&quot; returns every row<br>var unsafeQuery = await db.Orders<br>    .FromSqlRaw(&quot;SELECT * FROM Orders WHERE Status = '&quot; + status + &quot;'&quot;)<br>    .ToListAsync(ct);<br>&nbsp;<br>// LINQ: a captured variable becomes a parameter automatically<br>var linq = await db.Orders.Where(o =&gt; o.Status == status).ToListAsync(ct);</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>In LINQ, captured variables become SQL parameters, so one query shape gives one SQL text and one cached plan. <code>FromSql</code>, added in EF Core 7, turns interpolated values into parameters too. Concatenating values into <code>FromSqlRaw</code> creates new SQL text for every value, which can fill the SQL Server plan cache with single-use plans and opens a SQL injection hole.</blockquote>
+<p><strong>The trap / follow-up:</strong> "Can parameterization make things worse?" Yes, through parameter sniffing: SQL Server compiles one plan for the first parameter value it sees, which can be a poor plan for very different values. The answer is to diagnose it in Query Store and fix it at the database level, for example with a forced plan or a query hint, not to stop parameterizing.</p>
+<p><strong>Memory hook:</strong> <em>Parameters for values, never string concatenation.</em></p>
+<hr />
+<h2>Q12. You need to expire 50,000 old orders. How do you do it with EF Core?</h2>
+<p><strong>What they're actually testing:</strong> Whether you reach for set-based updates instead of loading thousands of entities into the change tracker, and whether you know what you give up.</p>
+<p><strong>The analogy:</strong> You do not phone 50,000 customers one at a time to tell them a policy changed. You send one notice.</p>
+<p><strong>The code:</strong></p>
+<pre>var cutoff = DateTime.UtcNow.AddDays(-30);<br>&nbsp;<br>int expired = await db.Orders<br>    .Where(o =&gt; o.Status == &quot;New&quot; &amp;&amp; o.CreatedAt &lt; cutoff)<br>    .ExecuteUpdateAsync(s =&gt; s.SetProperty(o =&gt; o.Status, &quot;Expired&quot;), ct);<br>&nbsp;<br>int purged = await db.Orders<br>    .Where(o =&gt; o.Status == &quot;Expired&quot; &amp;&amp; o.CreatedAt &lt; cutoff.AddYears(-1))<br>    .ExecuteDeleteAsync(ct);</pre>
+<p><strong>Say this in the interview:</strong></p>
+<blockquote>I use <code>ExecuteUpdateAsync</code> and <code>ExecuteDeleteAsync</code>, available since EF Core 7. They translate to a single <code>UPDATE</code> or <code>DELETE</code> statement and run immediately, without loading entities or calling <code>SaveChanges</code>. That replaces 50,000 materialized entities and a large batched save with one statement.</blockquote>
+<p><strong>The trap / follow-up:</strong> "What do you lose?" They bypass the change tracker, so entities already tracked in the same context keep their old values. <code>SaveChanges</code> interceptors and logic in overridden <code>SaveChanges</code> do not run. They are not part of the implicit <code>SaveChanges</code> transaction, so if they must commit together with other changes, open an explicit transaction with <code>BeginTransactionAsync</code>; they join it. Since EF Core 10, the setters argument can be a regular lambda, which makes conditional setters easier to write.</p>
+<p><strong>Memory hook:</strong> <em>Set-based work deserves a set-based statement.</em></p>
+<p>Use the table below as a quick map from the symptom you see to the question that explains it.</p>
+<p><img alt="EF Core performance: symptom to fix" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/10-table-4.png" /></p>
+<p>Screenshot this before your interview.</p>
+<p><img alt="60-Second Revision" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/11-revision.png" /></p>
+<h2>5-Question Self-Check</h2>
+<ol>
+<li>Why does an N+1 problem often not appear in Query Store as a slow query?</li>
+<li>What happens to an <code>Include</code> when the query ends in a <code>Select</code> that does not return the entity?</li>
+<li>You load an entity with <code>AsNoTracking</code>, change a property and call <code>SaveChanges</code>. What is written to the database?</li>
+<li>An order with 30 lines and 10 shipments is loaded with two collection <code>Include</code> calls in single-query mode. How many rows come back?</li>
+<li>EF Core already caches query translation. What does <code>EF.CompileAsyncQuery</code> save?</li>
+</ol>
+<p><strong>Answers:</strong></p>
+<ol>
+<li>Each query is fast; the cost is the number of executions per request, which per-query statistics hide.</li>
+<li>It is ignored, because the projection decides what is loaded.</li>
+<li>Nothing, because the context is not tracking that entity.</li>
+<li>300 rows, because the JOINs multiply 30 by 10.</li>
+<li>Building the expression tree, extracting parameters and looking up the query cache on every call.</li>
+</ol>
+<h2>Coming next</h2>
+<p>Fast queries do not help if a message is processed twice or lost in a retry loop. Next, we cover Azure Service Bus in production: how retries and lock renewal actually behave, when messages land in the dead-letter queue, how sessions give you ordering, and how to build idempotent consumers that survive redelivery.</p>
+<p><strong>Which question came up in your interview that isn't here? Drop it in the responses — I'll add it to the next revision with credit.</strong></p>
+</article></body></html>
