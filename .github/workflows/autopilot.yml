@@ -71,6 +71,20 @@ jobs:
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push
 
+      - name: Tell Telegram the run failed
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
+          curl -s -o /dev/null "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "text=❌ <b>Curly Brace autopilot failed</b>
+          No article this time. <a href=\"${RUN_URL}\">Open the run</a>, tap the red step, and send me the error."
+
       - name: Keep the rendered files for 14 days
         if: always()
         uses: actions/upload-artifact@v4

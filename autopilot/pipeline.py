@@ -1,9 +1,11 @@
 """The whole flow: topic -> article -> visuals -> hosting -> Medium -> notify."""
 from __future__ import annotations
 
+import html
 import os
+import re
 import time
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from . import article as art_mod
@@ -145,18 +147,9 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
                                                      "import_url": result.get("import_url"),
                                                      "slug": art.slug})
 
-    msg = [f"✅ Ready to publish: \"{art.title}\"", ""] + [f"- {s}" for s in next_steps]
-    if "[severity:" in review_md or "VERDICT" in review_md:
-        issues = review_md.count("[severity:")
-        facts = review_md.split("Fact-check notes", 1)[1].count("\n- ") if "Fact-check notes" in review_md else 0
-        msg.append(f"- AI review: {issues} issue(s) found" + (", auto-fixed" if fixed else "")
-                   + f"; {facts} fact-check(s) for you to confirm")
-    if hosted:
-        msg.append(f"- Review notes: https://github.com/{host.repo}/blob/{host.branch}/"
-                   f"{host.remote_path(art.slug, 'review.md')}")
-    if warnings:
-        msg.append(f"- {len(warnings)} format warning(s) — see review notes")
-    notify(cfg, "\n".join(msg))
+    if not dry_run:
+        notify(cfg, _update_message(cfg, art, mode, result, review_md, fixed, warnings, next_steps,
+                                    host if hosted else None))
 
     log("Done.")
     print("\n" + "\n".join(f"  -> {s}" for s in next_steps))
@@ -166,6 +159,65 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
         print(f"\n  Claude usage: {writer.cost_estimate()}")
     result["warnings"] = warnings
     return result
+
+
+def _update_message(cfg, art, mode, result, review_md, fixed, warnings, next_steps, host) -> str:
+    """Telegram update (HTML): what was done, what you need to do, what happens next."""
+    e = html.escape
+    md = art.to_markdown(use_urls=True)
+    n_q = len(re.findall(r"^#+ Q\d+", md, re.M))
+    issues = review_md.count("[severity:")
+    facts = review_md.split("Fact-check notes", 1)[1].count("\n- ") if "Fact-check notes" in review_md else 0
+    review_link = (f"https://github.com/{host.repo}/blob/{host.branch}/{host.remote_path(art.slug, 'review.md')}"
+                   if host else None)
+
+    lines = ["<b>{ } The Curly Brace</b> · autopilot update", "",
+             "✅ <b>Ready to publish</b>", f"<b>{e(art.title)}</b>", f"<i>{e(art.subtitle)}</i>", "",
+             "📝 <b>What was done</b>",
+             f"• {n_q} questions · {len(md.split()):,} words · {len(art.assets)} visuals"]
+    if issues:
+        lines.append(f"• AI review found {issues} issues" + (" → all auto-fixed" if fixed else ""))
+    elif "VERDICT" in review_md:
+        lines.append("• AI review passed with no issues")
+    if host:
+        lines.append("• Images, GIFs and paste page are live on GitHub")
+
+    if result.get("paste_url") and mode == "local":
+        todo = [f'Open the <a href="{result["paste_url"]}">paste page</a> → tap <b>Copy article</b>',
+                'Paste into a <a href="https://medium.com/new-story">new Medium story</a>']
+    else:
+        todo = [e(s) for s in next_steps if not s.startswith("Tags")]
+    if facts:
+        todo.append(f"Confirm {facts} fact-checks in the " +
+                    (f'<a href="{review_link}">review notes</a>' if review_link else "review notes"))
+    todo += [f"Add tags: <code>{e(', '.join(art.tags))}</code>", "Publish 🚀"]
+    lines += ["", "👉 <b>Your turn</b> (about 15 min)"] + [f"{i}. {t}" for i, t in enumerate(todo, 1)]
+
+    pending = [i for i in q.load(cfg.queue_file) if i.get("status", "pending") == "pending"]
+    lines += ["", "🔜 <b>What's next</b>"]
+    lines.append(f"• Next topic: {e(pending[0]['topic'])}" if pending else "• Queue is empty")
+    if len(pending) < 2:
+        lines.append(f"• {len(pending)} topic(s) left — Claude will plan new ones on the next run")
+    run = next_run(cfg.root / ".github" / "workflows" / "autopilot.yml")
+    if run:
+        lines.append(f"• Next run: {run}")
+    if warnings:
+        lines += ["", f"⚠️ {len(warnings)} format warning(s) — see the review notes"]
+    return "\n".join(lines)
+
+
+def next_run(workflow: Path, now: datetime | None = None) -> str | None:
+    """Next scheduled run in IST, from a simple 'M H * * D[,D]' (or '*') cron in the workflow."""
+    m = (re.search(r'cron:\s*"(\d+) (\d+) \* \* ([\d,]+|\*)"', workflow.read_text(encoding="utf-8"))
+         if workflow.exists() else None)
+    if not m:
+        return None
+    now = now or datetime.now(timezone.utc)
+    for i in range(8):
+        t = (now + timedelta(days=i)).replace(hour=int(m[2]), minute=int(m[1]), second=0, microsecond=0)
+        if t > now and (m[3] == "*" or str((t.weekday() + 1) % 7) in m[3].split(",")):  # cron: 0 = Sunday
+            return (t + timedelta(hours=5, minutes=30)).strftime("%a %d %b, %I:%M %p IST")
+    return None
 
 
 def _open_for_paste(cfg, files, hosted) -> None:
