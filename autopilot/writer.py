@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import prompts
+from . import prompts, published
 from .config import Settings
 
 
@@ -136,6 +136,7 @@ class Writer:
         series = item.get("series")
         system = fill(prompts.WRITER_BASE,
                       research=prompts.RESEARCH_ON if self.research else prompts.RESEARCH_OFF,
+                      published=published.as_prompt_list(published.load(self.cfg)),
                       format=fmt, guide=spec["guide"], cta=cta_for(self.cfg, fmt),
                       words_min=spec["words"][0], words_max=spec["words"][1],
                       visuals_min=spec["visuals"][0], visuals_max=spec["visuals"][1])
@@ -175,6 +176,7 @@ class Writer:
         system = fill(prompts.REVIEWER_SYSTEM,
                       research=prompts.REVIEW_RESEARCH_ON if self.research else prompts.REVIEW_RESEARCH_OFF,
                       guide=prompts.FORMATS[fmt]["guide"],
+                      published=published.as_prompt_list(published.load(self.cfg)),
                       notes_shape=prompts.NOTES_RESEARCH_ON if self.research else prompts.NOTES_RESEARCH_OFF)
         text = self._call(system, f"Call to action that must appear verbatim: {cta_for(self.cfg, fmt)}\n\n"
                                   "Review this article:\n\n" + article_md, max_tokens=8000, research=self.research)

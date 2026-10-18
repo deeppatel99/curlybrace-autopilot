@@ -7,6 +7,7 @@ The Curly Brace — Medium autopilot.
   python run.py add "Topic" --track azure --format bug-hunt   add a topic to the queue
   formats: deep-dive | bug-hunt | build-log | versus | interview | news
   python run.py file samples/sample-article.md   render + publish an article you already have
+  python run.py import-medium <export folder>   record everything already on Medium (unzipped data export)
 
 Common flags:
   --mode api|import|local   override publish.mode from config.yaml
@@ -130,6 +131,8 @@ def main() -> None:
     f = sub.add_parser("file")
     f.add_argument("path")
     common(f)
+    m = sub.add_parser("import-medium", help="seed topics/published.yaml from an unzipped Medium export")
+    m.add_argument("folder")
 
     args = p.parse_args()
     cfg = config.load(args.config)
@@ -143,6 +146,12 @@ def main() -> None:
                                         "status": "pending"}.items() if v})
         q.save(cfg.queue_file, items)
         print(f"Added. {sum(1 for i in items if i.get('status') == 'pending')} pending topics.")
+        return
+    if args.cmd == "import-medium":
+        from autopilot import published
+        items = published.import_export(Path(args.folder))
+        published.save(cfg, published.merge_feed(cfg, items))
+        print(f"Saved {len(items)} published articles to {published.path(cfg)}")
         return
     kw = dict(mode=args.mode, dry_run=args.dry_run, skip_review=args.no_review)
     if args.cmd == "next":

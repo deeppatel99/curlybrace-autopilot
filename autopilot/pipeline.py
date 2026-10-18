@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from . import article as art_mod
+from . import published
 from . import queue as q
 from .notify import notify
 from .publish import MediumAPI, to_html, write_local_files
@@ -39,7 +40,7 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
             if len(pending) < 2 and cfg.get("topics.auto_plan", True):
                 log("Queue is running low — asking Claude to plan the next topics...")
                 covered = ([i["topic"] for i in items] + list(cfg.get("topics.already_published", []) or [])
-                           + _published_titles(cfg))
+                           + [f"{p['title']} ({p['subtitle']})" for p in published.refresh(cfg)])
                 new = writer.plan_topics(covered, int(cfg.get("topics.plan_batch", 5)))
                 items += new
                 q.save(cfg.queue_file, items)
@@ -48,6 +49,7 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
             if not item:
                 log("Queue is empty — nothing to do. Add topics to topics/queue.yaml.")
                 return {"status": "empty"}
+        published.refresh(cfg)  # writer links, and reviewer checks overlap against, the current list
         fmt = writer.format_of(item)
         log(f"Writing: {item['topic']}  ({fmt}, model: {writer.model}, research: {'on' if writer.research else 'off'})")
         raw_md = writer.write(item, next_item.get("topic") if next_item else item.get("next"))
@@ -208,19 +210,6 @@ def _update_message(cfg, art, mode, result, review_md, fixed, warnings, next_ste
     if warnings:
         lines += ["", f"⚠️ {len(warnings)} format warning(s) — see the review notes"]
     return "\n".join(lines)
-
-
-def _published_titles(cfg) -> list[str]:
-    """Titles already on Medium (RSS feed), so the planner never repeats them. Best effort."""
-    feed = cfg.get("topics.medium_feed")
-    if not feed:
-        return []
-    try:
-        import requests
-        xml = requests.get(feed, headers={"User-Agent": "Mozilla/5.0"}, timeout=20).text
-        return [html.unescape(t) for t in re.findall(r"<item>\s*<title><!\[CDATA\[(.*?)\]\]>", xml)]
-    except Exception:
-        return []
 
 
 def next_run(workflow: Path, now: datetime | None = None) -> str | None:

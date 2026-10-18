@@ -74,8 +74,8 @@ jobs:
         run: |
           git config user.name  "curlybrace-autopilot"
           git config user.email "actions@users.noreply.github.com"
-          git add topics/queue.yaml
-          git diff --cached --quiet || git commit -m "queue: mark topic done"
+          git add topics/queue.yaml topics/published.yaml
+          git diff --cached --quiet || git commit -m "queue: mark topic done, refresh published list"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push
 

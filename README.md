@@ -54,7 +54,9 @@ Each article ships with a `review.md` that holds the reviewer's verdict, the iss
 - **Three-pass authoring.** A writer, a strict principal-engineer reviewer and an editor run as separate Claude calls with separate system prompts. The reviewer judges accuracy, whether the title's promise is delivered and whether a senior reader would learn something, and the editor applies every high and medium issue.
 - **Visuals as code.** Cover, tables, three diagram styles, two GIF styles and a revision sheet, all drawn with Pillow in one consistent brand system. GIFs share a single palette across frames, so colours do not flicker.
 - **Format contract, enforced in code.** Every article is checked against the rules of its own format: length band, visual budget, cover first, exactly five tags, the exact call to action, and for interview sets the question structure. Any deviation is reported in `review.md`.
-- **Self-refilling topic queue.** When fewer than two topics remain, Claude plans five more, each with a format and an angle. It skips everything in the queue and everything already live on Medium (read from the RSS feed), and rotates across tracks (C#, ASP.NET Core, SQL, Azure, DevOps, AI, system design).
+- **Knows the back catalogue.** Every published story (seeded from a Medium data export, kept current from the RSS feed) is in [`topics/published.yaml`](topics/published.yaml). The planner never repeats one, the reviewer flags overlap, and the writer links one or two related past articles inline, which keeps readers moving through the publication.
+- **Writes in the author's voice.** The house style was distilled from 65 published articles: cold-open scenes, one analogy for the mechanism, headings that talk like a person, an honest "when not to" section, and a closing takeaway, action and question for the responses.
+- **Self-refilling topic queue.** When fewer than two topics remain, Claude plans five more, each with a format and an angle, and rotates across tracks (C#, ASP.NET Core, SQL, Azure, DevOps, AI, system design).
 - **Zero infrastructure.** GitHub Actions is the scheduler, the GitHub Contents API is the image CDN, GitHub Pages serves the paste page, and Claude Code runs headless on a Pro subscription.
 - **Built for Medium's real editor.** A one-click copy page puts the title, text, hosted images, GIFs and code on the clipboard in the shape Medium's editor accepts on paste, so code blocks stay intact and quotes gain no stray lines.
 - **Human in the loop, by design.** The pipeline never publishes on its own. A Telegram update lists what was done, the fact-checks to confirm and what runs next, and a failed run sends an alert with a link to the logs.
@@ -175,8 +177,10 @@ On macOS and Linux, use `.venv/bin/python run.py <command>`. In CI the same comm
 │   ├── host.py              GitHub Contents API uploads and public URLs
 │   ├── publish.py           preview and paste pages, Medium-specific HTML shaping
 │   ├── queue.py             topic queue
+│   ├── published.py         back catalogue: Medium export import + RSS refresh
 │   └── notify.py            Telegram and GitHub run summary
 ├── topics/queue.yaml        upcoming and completed topics
+├── topics/published.yaml    everything already live on Medium
 ├── posts/<slug>/            published output: images, paste.html, article.md, review.md
 ├── .github/workflows/       weekly schedule and failure alert
 ├── fonts/                   Inter and JetBrains Mono (SIL OFL)

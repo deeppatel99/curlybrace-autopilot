@@ -66,9 +66,11 @@ Max 4 columns, max 7 rows, each cell <= 70 chars. First column = the thing being
 
 # ── Formats ──────────────────────────────────────────────────────────────
 # kicker  = label on the cover · words = target range · visuals = total incl. cover
+# Lengths follow the author's own articles: standalone stories ~650-1,400 words, build logs ~2,500,
+# interview parts ~2,700-4,800.
 FORMATS = {
     "deep-dive": {
-        "kicker": "Deep Dive", "words": (1400, 2600), "visuals": (4, 7),
+        "kicker": "Deep Dive", "words": (900, 1800), "visuals": (3, 6),
         "guide": """DEEP DIVE: one concept, feature or technique, explained so well that a senior
 developer learns something and a mid-level developer finally gets it.
 Shape (adapt the headings to the topic; never use these labels literally):
@@ -82,7 +84,7 @@ Shape (adapt the headings to the topic; never use these labels literally):
 Take a clear position and defend it ("for most domain models, X beats Y, and here is why").""",
     },
     "bug-hunt": {
-        "kicker": "Bug Hunt", "words": (1300, 2400), "visuals": (3, 6),
+        "kicker": "Bug Hunt", "words": (800, 1600), "visuals": (3, 5),
         "guide": """BUG HUNT: the story of tracking down one failure, told so the reader can recognise
 and fix it in their own system.
 Shape: the symptom first (what users, logs or dashboards showed) -> the first guesses and why they
@@ -105,7 +107,7 @@ Present it as a design the reader can build. Do not claim results, users or numb
 author's notes do not give.""",
     },
     "versus": {
-        "kicker": "X vs Y", "words": (1200, 2200), "visuals": (4, 6),
+        "kicker": "X vs Y", "words": (900, 1800), "visuals": (3, 6),
         "guide": """X VS Y: a decision guide between two or three options developers genuinely confuse.
 Shape: the situation where the choice matters (a concrete scenario) -> how each option works,
 briefly -> side by side on the dimensions that actually decide it (one table asset) -> the same task
@@ -114,7 +116,7 @@ common wrong choice and what it costs.
 Be decisive. "It depends" must always be followed by exactly what it depends on.""",
     },
     "interview": {
-        "kicker": "Interview Ready", "words": (2200, 4200), "visuals": (5, 9),
+        "kicker": "Interview Ready", "words": (2600, 4800), "visuals": (5, 9),
         "guide": """INTERVIEW SET: the questions interviewers really ask on this topic, with answers that
 show depth.
 Pick between 6 and 12 questions: as many as the topic genuinely supports, never padded. Order them
@@ -141,7 +143,7 @@ Close with a cheat-sheet asset, then `## Self-Check`: 3-5 numbered questions, th
 `**Answers:**` with one-line answers.""",
     },
     "news": {
-        "kicker": "What It Means for You", "words": (900, 1800), "visuals": (3, 5), "needs_research": True,
+        "kicker": "What It Means for You", "words": (1000, 2400), "visuals": (3, 5), "needs_research": True,
         "guide": """NEWS ANALYSIS: what a new release, model or announcement actually changes for working
 developers.
 Research is mandatory: confirm every fact (version numbers, dates, prices, availability, limits,
@@ -178,32 +180,49 @@ TRUST (non-negotiable)
 - Never invent APIs, flags, config keys, benchmark numbers, statistics, quotes, studies, customer
   stories or "we measured X%" figures. Use a number only if it is arithmetic shown in the article,
   comes from an official source you link, or is given in the author's notes.
-- Stories: if the author's notes describe a real incident, build the opening on it and keep its
-  details. Otherwise frame the opening as a scenario the reader will recognise ("Picture a checkout
-  API that...", "This failure shows up in almost every...") and never present an invented incident
-  as something that happened to the author or their team.
+- Stories: if the author's notes describe a real incident, tell it in the first person with its
+  real details. If they do not, write the opening scene in the second person or as an explicit
+  hypothetical ("It's 3:12 a.m. and your on-call engineer is paged for 214 failed jobs..."). Specific
+  illustrative details are fine inside a clearly hypothetical scene; never present it as something
+  that happened to the author or their team, and never attach invented figures to real companies or
+  products.
 - When you are not sure something is true, leave it out or say plainly what is uncertain.
 {research}
 
-WHAT MAKES IT WORTH READING
-- Title: specific, 50-90 characters, promises a concrete payoff that the article fully delivers.
-  A sharp claim or question beats "A Guide to X". Good examples from this publication:
-  "Your Abstract Base Class Is Lying to the Compiler",
-  "One Prompt Couldn't Turn Our Sprint Calls Into Tickets. Three Agents Could."
-- Subtitle: one sentence with the payoff and a hint of the stance.
-- First three lines: a concrete problem, tension or surprising fact. Never open with a definition,
-  a history lesson or "In today's world".
-- Take a position. Explain the why, not only the what. Say when NOT to use something.
-- One idea per section, a subheading every 150-300 words, paragraphs of 1-4 sentences.
-- Concrete example first, abstraction second.
-- Cut whatever does not earn its place: no recaps of what you just said, no filler transitions, no
-  "Let's dive in", no hype words (delve, unleash, game-changer, revolutionize, seamless, robust,
-  leverage, supercharge).
-- End with something usable (a checklist, a decision rule, the one line to remember), then the
-  call to action.
+HOUSE STYLE (taken from the author's own published articles; match it)
+- Title: 50-90 characters; a confession, a claim or a stake that the article fully pays off.
+  The author's titles: "One Innocent Line (.Result) Froze My Entire API.",
+  "Your HttpClient Is Quietly Killing Production. You'll Find Out at 2 A.M.",
+  "I Deleted Every Connection String From Our Azure Apps. Managed Identity Did the Rest.",
+  "Your Abstract Base Class Is Lying to the Compiler".
+  Use a first-person title ("I...", "We...") only when the author's notes give that real experience;
+  otherwise use the "Your X is..." or claim style.
+- Subtitle: one sentence with the payoff and an edge ("...and the three places you shouldn't use it").
+- Open cold: a scene in 3-6 short lines, with a concrete detail (a time, an error, a one-line
+  message, one line of code). Short punchy sentences, the occasional fragment for rhythm. Then one
+  line that names the question the article answers. Never open with a definition, a history lesson
+  or "In today's world".
+- Explain the mechanism with one everyday analogy (the thread pool as a restaurant's waiters), then
+  show the code. Concrete example first, abstraction second.
+- Headings talk like a person: "The fix is almost insultingly simple", "The Migration, Honestly",
+  "My hot take: ...", "The three ways X will still surprise you", "Three things I got wrong".
+  Never "Introduction", "Overview", "Background" or "Conclusion".
+- Always include the honest part: when not to use it, the trade-off, what still goes wrong.
+- One idea per section, a subheading every 150-300 words, paragraphs of 1-4 sentences. Take a
+  position and explain the why.
+- Close with: the one-line takeaway as a blockquote; one concrete thing to do today ("Check your
+  code for .Result tonight."); one opinionated question for the responses ("Unions or closed: which
+  would you pick for your domain model? Tell me I'm wrong."); then the call to action.
+- Link 1-2 of the author's earlier articles (list below) inline where genuinely relevant, e.g.
+  "(I covered the thread-pool side of this in [One Innocent Line (.Result) Froze My Entire API](url).)"
+  Never re-explain at length what one of those articles already covers; build on it instead.
+- Cut whatever does not earn its place: no recaps, no filler transitions, no "Let's dive in", no
+  hype words (delve, unleash, game-changer, revolutionize, seamless, robust, leverage, supercharge).
+- Voice: a senior engineer talking to a respected colleague. Direct, concrete, a little dry humour,
+  zero fluff. Clean global English. No Hinglish, no slang, no emojis.
 
-VOICE: a senior engineer explaining to a respected colleague: direct, concrete, a little dry humour
-allowed, zero fluff. Clean global English. No Hinglish, no slang, no emojis.
+THE AUTHOR'S PUBLISHED ARTICLES (do not repeat their substance; link where it helps the reader)
+{published}
 
 DOCUMENT STRUCTURE
 1. Front matter at the very top:
@@ -262,17 +281,24 @@ Check, in this order:
    invented numbers, APIs, quotes or studies, an invented incident presented as the author's own
    experience, missing version qualifiers.
 2. Promise: does the article fully deliver what the title and subtitle promise?
-3. Reader value: is the opening concrete within three lines? Would a senior developer learn
-   something? Is there a clear stance and a usable takeaway? Flag filler, repetition and sections
-   that do not earn their place.
-4. Format: follows the format below; front matter has `format` and exactly 5 tags with the right
+3. Overlap: does it substantially repeat one of the author's published articles (list below)?
+   That is a high-severity issue: name the article and say what to cut or how to build on it instead.
+4. Reader value and house style: a cold-open scene within three lines; one analogy for the
+   mechanism; headings that talk like a person; an honest "when not to" part; a closing blockquote
+   takeaway, one action for today and one question for the responses. Would a senior developer
+   learn something? Flag filler, repetition and sections that do not earn their place. A
+   first-person story or title not backed by the author's notes is an accuracy issue.
+5. Format: follows the format below; front matter has `format` and exactly 5 tags with the right
    lead tag; cover first; visual count within limits and each visual adds something the prose does
    not; every asset block is valid JSON within its size limits; no markdown tables or HTML; the
    exact call to action is last.
-5. Language: clean global English, no hype words, no filler.
+6. Language: clean global English, no hype words, no filler.
 
 THE FORMAT THIS ARTICLE SHOULD FOLLOW
 {guide}
+
+THE AUTHOR'S PUBLISHED ARTICLES
+{published}
 
 Output markdown only, in this shape:
 

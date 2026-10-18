@@ -1,0 +1,306 @@
+# Articles already live on Medium (newest first). Kept current from the RSS feed.
+# The planner never repeats these; the writer links related ones.
+
+- date: '2026-10-17'
+  title: Your Abstract Base Class Is Lying to the Compiler
+  subtitle: C# 15’s closed modifier turns "every case is handled" from a hope into a guarantee — and for most domain models,
+    it beats unions.
+  url: https://medium.com/@thecurlybrace/your-abstract-base-class-is-lying-to-the-compiler-525ea09135ca
+- date: '2026-10-14'
+  title: The One C# 15 Keyword That Will Delete Your Result<T> Class
+  subtitle: Union types land with .NET 11 next month. Here’s the bug they would have caught at compile time — and the three
+    places you shouldn’t use…
+  url: https://medium.com/@thecurlybrace/the-one-c-15-keyword-that-will-delete-your-result-t-class-88cd5a053f09
+- date: '2026-09-21'
+  title: One Prompt Couldn’t Turn Our Sprint Calls Into Tickets. Three Agents Could.
+  subtitle: Building a multi-agent pipeline in .NET with Microsoft Agent Framework — and the confidence gate that made it
+    safe to actually ship
+  url: https://medium.com/@thecurlybrace/one-prompt-couldnt-turn-our-sprint-calls-into-tickets-three-agents-could-5cfbb4ac8f2e
+- date: '2026-09-20'
+  title: Jev Doesn’t Write a Single Word — And It’s Playing DOOM
+  subtitle: A researcher who helped build ChatGPT just shipped an AI that refuses to generate text. It’s up to 200× faster,
+    400× cheaper, and by…
+  url: https://medium.com/@thecurlybrace/jev-doesnt-write-a-single-word-and-it-s-playing-doom-becad2b9c163
+- date: '2026-09-11'
+  title: GPT-6 Astra Doesn’t Just Write Your Code. It Uses Your Computer.
+  subtitle: What OpenAI’s new model actually changes for developers, teams and everyday work — and the fine print the launch
+    posts skip.
+  url: https://medium.com/@thecurlybrace/gpt-6-astra-doesnt-just-write-your-code-it-uses-your-computer-4878708195bd
+- date: '2026-09-07'
+  title: System Design, the HR Round, and the Cheat Sheet for All 25 Parts
+  subtitle: Monolith vs microservices, the five-move design framework, how to answer “tell me about yourself” — and one printable
+    sheet covering the…
+  url: https://medium.com/@thecurlybrace/system-design-the-hr-round-and-the-cheat-sheet-for-all-25-parts-b6bdf681db23
+- date: '2026-09-06'
+  title: 'The Coding Round: 12 C# Problems, and What to Say While You Write Them'
+  subtitle: Brute force first, then optimise — with complexity, edge cases, and the five things to say out loud. Part 24 of
+    25.
+  url: https://medium.com/@thecurlybrace/the-coding-round-12-c-problems-and-what-to-say-while-you-write-them-eb3907b7d4fc
+- date: '2026-09-05'
+  title: 'AI in .NET: Building It, Securing It, and Testing Something Non-Deterministic'
+  subtitle: Microsoft.Extensions.AI, Semantic Kernel, RAG in C#, typed tool calling, and how you actually test an AI feature.
+    Part 23 of 25.
+  url: https://medium.com/@thecurlybrace/ai-in-net-building-it-securing-it-and-testing-something-non-deterministic-522c709daae4
+- date: '2026-09-04'
+  title: 'AI Fundamentals for Developers: The Round That Didn’t Exist Two Years Ago'
+  subtitle: Tokens, embeddings, RAG, hallucination and temperature — explained for engineers, with no maths degree required.
+    Part 22 of 25.
+  url: https://medium.com/@thecurlybrace/ai-fundamentals-for-developers-the-round-that-didnt-exist-two-years-ago-e1b2cb40c2bc
+- date: '2026-09-03'
+  title: 'CI/CD & Docker: “Your Pipeline Takes Forty Minutes. Make It Faster.”'
+  subtitle: CI vs delivery vs deployment, multi-stage Dockerfiles, blue-green vs canary, and the pipeline optimisation question.
+    Part 21 of 25.
+  url: https://medium.com/@thecurlybrace/ci-cd-docker-your-pipeline-takes-forty-minutes-make-it-faster-4173447928f5
+- date: '2026-09-01'
+  title: 'Azure at Scale: “Black Friday Traffic Is 50×. Design It.” — 12 Scenario Questions'
+  subtitle: Service Bus vs Event Grid vs Event Hubs, autoscaling triggers, caching, and the architecture they want you to
+    draw. Part 20 of 25.
+  url: https://medium.com/@thecurlybrace/azure-at-scale-black-friday-traffic-is-50-design-it-12-scenario-questions-134d399c883a
+- date: '2026-09-01'
+  title: 'Azure Fundamentals: Which Service, and How to Stop Storing Passwords Entirely'
+  subtitle: The compute decision tree, storage options, Key Vault, and the Managed Identity answer that ends the connection
+    string. Part 19 of 25.
+  url: https://medium.com/@thecurlybrace/azure-fundamentals-which-service-and-how-to-stop-storing-passwords-entirely-344b0d8f1beb
+- date: '2026-08-31'
+  title: 'Advanced SQL: Window Functions, Isolation Levels, and the Deadlock You Caused Yourself'
+  subtitle: ROW_NUMBER vs RANK vs DENSE_RANK, “second highest salary” four ways, and what actually causes a deadlock. Part
+    18 of 25.
+  url: https://medium.com/@thecurlybrace/advanced-sql-window-functions-isolation-levels-and-the-deadlock-you-caused-yourself-9dbb17d39376
+- date: '2026-08-30'
+  title: 'Indexes & Query Tuning: Your Query Was 200ms. Now It’s 8 Seconds. Nothing Changed.'
+  subtitle: Clustered vs non-clustered, covering indexes, sargability, and reading an execution plan. Part 17 of 25.
+  url: https://medium.com/@thecurlybrace/indexes-query-tuning-your-query-was-200ms-now-its-8-seconds-nothing-changed-d2e22e87e2b2
+- date: '2026-08-30'
+  title: 'SQL Fundamentals: Why Your Column Alias Doesn’t Work in a WHERE Clause'
+  subtitle: Every JOIN with real rows, the execution order that explains half your errors, and DELETE vs TRUNCATE vs DROP.
+    Part 16 of 25.
+  url: https://medium.com/@thecurlybrace/sql-fundamentals-why-your-column-alias-doesnt-work-in-a-where-clause-745c1db2a3c7
+- date: '2026-08-29'
+  title: 'Behavioural Patterns & Anti-Patterns: The Round Where They Ask If You’d Use a Repository'
+  subtitle: Strategy, Observer, Mediator and CQRS — plus the six anti-patterns quietly rotting codebases. Part 15 of 25.
+  url: https://medium.com/@thecurlybrace/behavioural-patterns-anti-patterns-the-round-where-they-ask-if-youd-use-a-repository-675e84cc931f
+- date: '2026-08-28'
+  title: 'Structural Patterns: You’ve Been Writing Decorators Without Knowing It'
+  subtitle: Adapter, Decorator, Facade, Proxy, Composite — and why ASP.NET Core middleware is one of them. Part 14 of 25.
+  url: https://medium.com/@thecurlybrace/structural-patterns-youve-been-writing-decorators-without-knowing-it-446928a8ab36
+- date: '2026-08-27'
+  title: 'Creational Patterns: Write a Thread-Safe Singleton on This Whiteboard'
+  subtitle: Singleton, Factory, Abstract Factory, Builder, Prototype — and the .NET code where you’ve already used all five.
+    Part 13 of 25.
+  url: https://medium.com/@thecurlybrace/creational-patterns-write-a-thread-safe-singleton-on-this-whiteboard-a7d9a318920a
+- date: '2026-08-26'
+  title: 'SOLID Principles: Everyone Can Recite Them. Here’s the Code That Proves You Understand Them.'
+  subtitle: Each principle as a real before-and-after refactor — plus when applying SOLID makes your code worse. Part 12 of
+    25.
+  url: https://medium.com/@thecurlybrace/solid-principles-everyone-can-recite-them-heres-the-code-that-proves-you-understand-them-5f3c4eec65dd
+- date: '2026-08-25'
+  title: 'Entity Framework Core: Why Your Endpoint Fires 51 Queries Instead of 1'
+  subtitle: The N+1 problem, change tracking, and the one-word typo that loads your entire table. Part 11 of 25.
+  url: https://medium.com/@thecurlybrace/entity-framework-core-why-your-endpoint-fires-51-queries-instead-of-1-16ae5f5e8114
+- date: '2026-08-24'
+  title: 'Web API Design & Security: 12 Questions That Decide Whether You Get the Backend Role'
+  subtitle: Status codes, idempotency, versioning, and JWT end-to-end — including the retry that charges a customer twice.
+    Part 10 of 25.
+  url: https://medium.com/@thecurlybrace/web-api-design-security-12-questions-that-decide-whether-you-get-the-backend-role-56c44fde6157
+- date: '2026-08-23'
+  title: 'Dependency Injection: The Question Every ASP.NET'
+  subtitle: Singleton vs Scoped vs Transient, the captive dependency problem, keyed services, and 9 more. Part 9 of 25.
+  url: https://medium.com/@thecurlybrace/dependency-injection-the-question-every-asp-net-3d49152b66a6
+- date: '2026-08-22'
+  title: 'Middleware vs Filters: The ASP.NET Core Question That Has Two Correct Answers'
+  subtitle: Where each one actually lives, what each one can see, and how to pick — with 12 questions this round always covers.
+    Part 8 of 25.
+  url: https://medium.com/@thecurlybrace/middleware-vs-filters-the-asp-net-core-question-that-has-two-correct-answers-b648b98ce7e5
+- date: '2026-08-21'
+  title: 'ASP.NET Core Fundamentals: What Actually Happens Between the Browser and Your Controller'
+  subtitle: Kestrel, the middleware U-turn, configuration precedence, and the 9 other things this round always covers. Part
+    7 of 25.
+  url: https://medium.com/@thecurlybrace/asp-net-core-fundamentals-what-actually-happens-between-the-browser-and-your-controller-dc957ab67965
+- date: '2026-08-19'
+  title: 'Exception Handling: The One Keyword That Makes Your Production Bugs Undebuggable'
+  subtitle: throw vs throw ex, exception filters, global handlers, and the 9 other questions this round always covers. Part
+    6 of 25.
+  url: https://medium.com/@thecurlybrace/exception-handling-the-one-keyword-that-makes-your-production-bugs-undebuggable-9d224c81f8ef
+- date: '2026-08-18'
+  title: 'Memory & Garbage Collection: 12 Questions Nobody Prepares For (And Everyone Gets Asked)'
+  subtitle: Where your objects actually live, when they die, and why .NET absolutely can leak memory. Part 5 of 25.
+  url: https://medium.com/@thecurlybrace/memory-garbage-collection-12-questions-nobody-prepares-for-and-everyone-gets-asked-795afc1b1b67
+- date: '2026-08-13'
+  title: 'Async & Await: The 12 Questions That Reject More .NET Candidates Than Anything Else'
+  subtitle: Why .Result deadlocks, why async void crashes your process, and what await actually does under the hood. Part
+    4 of 25.
+  url: https://medium.com/@thecurlybrace/async-await-the-12-questions-that-reject-more-net-candidates-than-anything-else-9e21c2d12858
+- date: '2026-08-12'
+  title: 'Collections & LINQ: 12 Questions That Separate “I Use LINQ” From “I Understand LINQ”'
+  subtitle: Deferred execution, IQueryable, and the traps that quietly turn one query into five hundred. Part 3 of 25.
+  url: https://medium.com/@thecurlybrace/collections-linq-12-questions-that-separate-i-use-linq-from-i-understand-linq-cdfeb9a849ab
+- date: '2026-08-10'
+  title: 'C# Deep Dive: 12 Language Features Interviewers Ask About (And Most People Skip)'
+  subtitle: Delegates, events, generics, pattern matching and the modern C# that separates a 2015 developer from a 2026 one.
+    Part 2 of 25.
+  url: https://medium.com/@thecurlybrace/c-deep-dive-12-language-features-interviewers-ask-about-and-most-people-skip-abd84e8ee35a
+- date: '2026-08-08'
+  title: 'C# & .NET Fundamentals: 12 Most Common Questions Asked in Every Interview'
+  subtitle: The exact words to say, the analogies that stick, and the follow-up traps that reject most candidates. Part 1
+    of 25.
+  url: https://medium.com/@thecurlybrace/c-net-fundamentals-12-most-common-questions-asked-in-every-interview-dc851492c817
+- date: '2026-07-31'
+  title: I Gave an AI Agent Access to Our Database. It Ran the Same Query 1,400 Times.
+  subtitle: No infinite loop in my code. No bug in the SDK. The agent just… decided to keep checking. The bill decided to
+    keep climbing.
+  url: https://medium.com/@thecurlybrace/i-gave-an-ai-agent-access-to-our-database-it-ran-the-same-query-1-400-times-e0dc17ef5fbc
+- date: '2026-07-24'
+  title: “Design an AI Feature.” The Interview Question That Didn’t Exist Two Years Ago.
+  subtitle: 'System Design, But With Scars — Part 6 (finale): streaming tokens, conversation state, token-based rate limiting,
+    and the AI feature whose…'
+  url: https://medium.com/@thecurlybrace/design-an-ai-feature-the-interview-question-that-didnt-exist-two-years-ago-50b160701115
+- date: '2026-07-23'
+  title: Our Region Went Down. Our DR Plan Was a Wiki Page.
+  subtitle: 'System Design, But With Scars — Part 5: RTO, RPO, active-passive vs active-active, and the four hours that taught
+    us the difference between…'
+  url: https://medium.com/@thecurlybrace/our-region-went-down-our-dr-plan-was-a-wiki-page-06cb088e5432
+- date: '2026-07-22'
+  title: Two Servers Ran the Same Job at the Same Time.
+  subtitle: 'System Design, But With Scars — Part 4: leader election for people who just wanted a nightly cron, fencing tokens,
+    and the Azure Blob lease…'
+  url: https://medium.com/@thecurlybrace/two-servers-ran-the-same-job-at-the-same-time-3911110b2382
+- date: '2026-07-21'
+  title: The User Who Couldn’t See Their Own Comment
+  subtitle: 'System Design, But With Scars — Part 3: replication lag, the CAP theorem you can actually use, and the support
+    ticket that taught me…'
+  url: https://medium.com/@thecurlybrace/the-user-who-couldnt-see-their-own-comment-f72bfe581e0c
+- date: '2026-07-20'
+  title: 'Load Balancer vs API Gateway: The Interview Question Everyone Answers Wrong.'
+  subtitle: 'System Design, But With Scars — Part 2: four Azure services, one decision tree, and the day we doubled our own
+    latency.'
+  url: https://medium.com/@thecurlybrace/load-balancer-vs-api-gateway-the-interview-question-everyone-answers-wrong-44a43a78e029
+- date: '2026-07-19'
+  title: “Exactly-Once Delivery” Is a Lie. A Vanished Message Taught Me That.
+  subtitle: 'System Design, But With Scars — Part 1: the queue pattern behind half of all interview questions, learned the
+    expensive way.'
+  url: https://medium.com/@thecurlybrace/exactly-once-delivery-is-a-lie-a-vanished-message-taught-me-that-341b6816e87c
+- date: '2026-07-14'
+  title: The Cosmos DB Query That Burned 2 Million RUs Before Lunch
+  subtitle: One missing word in a WHERE clause. A dashboard that refreshed every 30 seconds. A throttling storm that made
+    the whole app feel broken —…
+  url: https://medium.com/@thecurlybrace/the-cosmos-db-query-that-burned-2-million-rus-before-lunch-e89dc953cbe5
+- date: '2026-07-08'
+  title: I Deleted Every Connection String From Our Azure Apps. Managed Identity Did the Rest.
+  subtitle: Zero secrets in config. Zero secrets in Key Vault references. Zero 3 AM “who rotated the password” incidents.
+    Here’s the migration.
+  url: https://medium.com/@thecurlybrace/i-deleted-every-connection-string-from-our-azure-apps-managed-identity-did-the-rest-8313641344e4
+- date: '2026-07-04'
+  title: 'Extension Members in C# 14: The Feature That’ll Start the Next “Is This Clean Code?” War'
+  subtitle: It lets you bolt a property onto a type you don’t own. Half my team called it elegant. The other half called it
+    cursed. They’re both right.
+  url: https://medium.com/@thecurlybrace/extension-members-in-c-14-the-feature-thatll-start-the-next-is-this-clean-code-war-6d6ec29968c6
+- date: '2026-06-30'
+  title: I Let Copilot Write a Whole Feature Unsupervised. Here’s the Bug It Shipped.
+  subtitle: The code compiled. The tests passed. The PR was clean. The bug only showed up under load — which is exactly when
+    it mattered.
+  url: https://medium.com/@thecurlybrace/i-let-copilot-write-a-whole-feature-unsupervised-heres-the-bug-it-shipped-2ab51e6a8ec5
+- date: '2026-06-29'
+  title: I Deleted AutoMapper a Year Before It Went Commercial. Here’s the Bug That Made Me Do It.
+  subtitle: A NullReferenceException, 14 frames deep into a library I’d never opened. The actual bug was one missing line.
+  url: https://medium.com/@thecurlybrace/i-deleted-automapper-a-year-before-it-went-commercial-heres-the-bug-that-made-me-do-it-221c67e23b68
+- date: '2026-06-28'
+  title: The One .NET 10 Method That Deleted Every GroupJoin I'd Ever Written
+  subtitle: Twenty years of LINQ. One missing keyword. A report that silently lied for three weeks.
+  url: https://medium.com/@thecurlybrace/the-one-net-10-method-that-deleted-every-groupjoin-id-ever-written-75fdf153a0f3
+- date: '2026-06-27'
+  title: Your Database Doesn’t Need Sharding. It Needs an Index.
+  subtitle: The 6-month sharding project we cancelled after one afternoon of profiling.
+  url: https://medium.com/@thecurlybrace/your-database-doesnt-need-sharding-it-needs-an-index-215e59e15b4a
+- date: '2026-06-26'
+  title: Your System Is Quietly Losing Data Right Now. The Dual-Write Bug Explained.
+  subtitle: The order was saved. The event didn’t. Nobody noticed for three months.
+  url: https://medium.com/@thecurlybrace/your-system-is-quietly-losing-data-right-now-the-dual-write-bug-explained-ecbf4f5d592b
+- date: '2026-06-25'
+  title: We Added a Cache. It Made the Outage Worse.
+  subtitle: One key expired. Twelve thousand identical queries hit the database in the same second.
+  url: https://medium.com/@thecurlybrace/we-added-a-cache-it-made-the-outage-worse-1aa73b865436
+- date: '2026-06-24'
+  title: One Customer Took Down Our API for Everyone. Here’s the Rate Limiter That Fixed It.
+  subtitle: They weren’t malicious. They were just… enthusiastic. With a retry loop.
+  url: https://medium.com/@thecurlybrace/one-customer-took-down-our-api-for-everyone-heres-the-rate-limiter-that-fixed-it-025cde836024
+- date: '2026-06-23'
+  title: We Merged 12 Microservices Back Into a Monolith. Our Velocity Doubled.
+  subtitle: Turns out we never had microservices. We had a monolith with extra steps.
+  url: https://medium.com/@thecurlybrace/we-merged-12-microservices-back-into-a-monolith-our-velocity-doubled-c76094c9d2b2
+- date: '2026-06-22'
+  title: The One C# Question That Filters Out 80% of “Senior” Developers
+  subtitle: Three innocent lines. One question. The answer reveals whether someone has actually felt LINQ in production.
+  url: https://medium.com/@thecurlybrace/the-one-c-question-that-filters-out-80-of-senior-developers-9dde52c2d57a
+- date: '2026-06-21'
+  title: The Most Expensive 4 Lines of C# I’ve Ever Seen
+  subtitle: Six hours of downtime. 38,000 lost orders. Every dashboard green the entire time.
+  url: https://medium.com/@thecurlybrace/the-most-expensive-4-lines-of-c-ive-ever-seen-284cc12a5c0f
+- date: '2026-06-20'
+  title: Your HttpClient Is Quietly Killing Production. You’ll Find Out at 2 A.M.
+  subtitle: One using statement. 65,535 sockets. Zero warnings until the pager went off.
+  url: https://medium.com/@thecurlybrace/your-httpclient-is-quietly-killing-production-youll-find-out-at-2-a-m-d7b79b653199
+- date: '2026-06-19'
+  title: I Pushed a Database Password to GitHub. Here’s What Happens in the Next 20 Minutes
+  subtitle: We’ve all done it or come close. A connection string sitting right there in the code. You commit, you push, you
+    move on. Let me walk you…
+  url: https://medium.com/@thecurlybrace/i-pushed-a-database-password-to-github-heres-what-happens-in-the-next-20-minutes-ab8cee1918ef
+- date: '2026-06-18'
+  title: The Bug That Only Showed Up After Midnight. Welcome to Timezones
+  subtitle: Some bugs you can reproduce any time. This one waited until 11 PM to ruin my evening. If you’ve ever shipped software
+    with a date in it…
+  url: https://medium.com/@thecurlybrace/the-bug-that-only-showed-up-after-midnight-welcome-to-timezones-bc95c1c22831
+- date: '2026-06-17'
+  title: A Customer Got Charged Three Times. The Scary Part? My Code Worked Exactly as Written.
+  subtitle: No exception. No crash. No bug in the logs. The code did precisely what I told it to. And a customer’s card got
+    hit three times for the…
+  url: https://medium.com/@thecurlybrace/a-customer-got-charged-three-times-the-scary-part-my-code-worked-exactly-as-written-b5ff4d7da23f
+- date: '2026-06-16'
+  title: My Page Made 500 Database Trips for One List. This Bug Is Hiding in Almost Every App.
+  subtitle: Let me tell you about the dumbest-looking bug I’ve shipped. And I promise you’ve shipped it too — you just might
+    not have noticed yet.
+  url: https://medium.com/@thecurlybrace/my-page-made-500-database-trips-for-one-list-this-bug-is-hiding-in-almost-every-app-a2b6298b7841
+- date: '2026-06-10'
+  title: I Deleted the Repository Pattern From Our Codebase. Here’s What Happened.
+  subtitle: Six months later, nobody asked for it back. (And our tests finally catch real bugs.)
+  url: https://medium.com/@thecurlybrace/i-deleted-the-repository-pattern-from-our-codebase-heres-what-happened-08576eaaf609
+- date: '2026-06-09'
+  title: My Cache Was Lying to Users. The Bug That Taught Me Cache Invalidation.
+  subtitle: Redis made everything fast. It also confidently served stale data for hours.
+  url: https://medium.com/@thecurlybrace/my-cache-was-lying-to-users-the-bug-that-taught-me-cache-invalidation-1bf294322afb
+- date: '2026-06-08'
+  title: 200 Requests Vanished Without a Trace. Then I Finally Understood What a Queue Is For.
+  subtitle: Why “just call the other service directly” quietly loses your data — and the picture that makes message queues
+    click.
+  url: https://medium.com/@thecurlybrace/200-requests-vanished-without-a-trace-then-i-finally-understood-what-a-queue-is-for-762d652fc34a
+- date: '2026-06-07'
+  title: One Innocent Line (.Result) Froze My Entire API. I Was Blocking async Without Knowing It.
+  subtitle: Everyone says “use async.” Nobody warns you what happens when you mix it with one tiny .Result.
+  url: https://medium.com/@thecurlybrace/one-innocent-line-result-froze-my-entire-api-i-was-blocking-async-without-knowing-it-8be867b6f4fd
+- date: '2026-06-06'
+  title: One Missing Index Made My Query 600× Slower. I Found It in Front of the Client.
+  subtitle: A 4-minute story about why your database is slow — and the one-line fix, explained with a picture you can actually
+    hold in your head.
+  url: https://medium.com/@thecurlybrace/one-missing-index-made-my-query-600-slower-i-found-it-in-front-of-the-client-8a0be6258410
+- date: '2026-06-03'
+  title: 'C# Interview Series — Part 4 (Finale): Senior-Level Signals (DI, Design Patterns & Production-Ready…'
+  subtitle: This is the part where the interview stops being a test and becomes a conversation. If you survive this, you’ve
+    got the offer.
+  url: https://medium.com/@thecurlybrace/c-interview-series-part-4-finale-senior-level-signals-di-design-patterns-production-ready-d46195d05c08
+- date: '2026-06-02'
+  title: 'C# Interview Series — Part 3: Where Mid-Levels Trip Up (Memory, Exceptions & the .NET Runtime)'
+  subtitle: This is the part of the interview that quietly separates “knows the language” from “has actually shipped production
+    code.”
+  url: https://medium.com/@thecurlybrace/c-interview-series-part-3-where-mid-levels-trip-up-memory-exceptions-the-net-runtime-3f35f37f4f64
+- date: '2026-06-01'
+  title: 'C# Interview Series — Part 2: The Second 15 Minutes (OOP, Collections & Modern C#)'
+  subtitle: You survived the language fundamentals. Now interviewers find out if you actually understand the language — or
+    just memorized its syntax.
+  url: https://medium.com/@thecurlybrace/c-interview-series-part-2-the-second-15-minutes-oop-collections-modern-c-21b67960b98e
+- date: '2026-05-31'
+  title: 'C# Interview Series — Part 1: The 12 Questions That Decide the First 15 Minutes'
+  subtitle: The first 15 minutes of any C# interview are basically the same 10–15 questions.
+  url: https://medium.com/@thecurlybrace/c-interview-series-part-1-the-12-questions-that-decide-the-first-15-minutes-4f784c33a576
+- date: '2026-05-29'
+  title: One Database Change Broke 3 Features. That’s the Day I Finally Understood Clean Architecture.
+  subtitle: Clean Architecture in .NET, explained simply — with a real healthcare example and diagrams you can actually picture.
+  url: https://medium.com/@thecurlybrace/one-database-change-broke-3-features-thats-the-day-i-finally-understood-clean-architecture-a3421a3392a2

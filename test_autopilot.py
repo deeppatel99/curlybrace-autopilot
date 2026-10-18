@@ -56,8 +56,21 @@ assert icta != cta                                                          # in
 
 for name, spec in prompts.FORMATS.items():                                 # every slot gets filled
     s = fill(prompts.WRITER_BASE, research=prompts.RESEARCH_ON, format=name, guide=spec["guide"], cta=cta,
-             words_min=1, words_max=2, visuals_min=1, visuals_max=2)
-    left = set(re.findall(r"\{(research|format|guide|cta|words_min|words_max|visuals_min|visuals_max)\}", s))
+             words_min=1, words_max=2, visuals_min=1, visuals_max=2, published="- x")
+    left = set(re.findall(r"\{(research|format|guide|cta|words_min|words_max|visuals_min|visuals_max|published)\}", s))
     assert not left, (name, left)
+
+# ── Medium export import: stories in, replies and drafts out ──────────────────
+from autopilot.published import import_export  # noqa: E402
+
+page = ('<h1 class="p-name">{t}</h1><section data-field="subtitle">Sub</section>'
+        '<section data-field="body">{b}</section><a href="https://medium.com/@x/{t}" class="p-canonical">c</a>')
+with tempfile.TemporaryDirectory() as d:
+    (Path(d) / "posts").mkdir()
+    (Path(d) / "posts" / "2026-06-07_story.html").write_text(page.format(t="Story", b="word " * 600), encoding="utf-8")
+    (Path(d) / "posts" / "2026-06-08_reply.html").write_text(page.format(t="Reply", b="Thanks!"), encoding="utf-8")
+    (Path(d) / "posts" / "draft_x.html").write_text(page.format(t="Draft", b="word " * 900), encoding="utf-8")
+    got = import_export(Path(d))
+    assert got == [{"date": "2026-06-07", "title": "Story", "subtitle": "Sub", "url": "https://medium.com/@x/Story"}], got
 
 print("ok")

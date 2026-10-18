@@ -144,6 +144,7 @@ run next                                    next queued topic
 run topic "Span<T> and Memory<T>" --track csharp --format deep-dive   one-off topic, queue untouched
 run add "Polly v8 resilience pipelines" --track aspnetcore --format versus
 run file out\2026-10-18-<slug>\source.md    re-render an article without calling Claude
+run import-medium <unzipped export folder>  record everything already on Medium
 ```
 
 | Flag | Effect |
@@ -190,7 +191,17 @@ Each run writes `out/<date>-<slug>/`:
 
 **Notes are how your experience gets in.** When you write `notes` yourself, without `auto: true`, the writer treats them as something that really happened and builds the opening on those details. A real incident from your own work is the strongest hook you can give it, and it is what Medium's curators look for. Planner ideas carry `auto: true`, and the writer tells them as a recognisable scenario, never as your past.
 
-When fewer than two topics are pending, Claude plans `topics.plan_batch` new ones, each with a format and an angle. It skips the queue, `topics.already_published` and the titles live on your Medium feed. To write a topic again, set its status back to `pending`. To add a series teaser, give the topic a `series:` name.
+When fewer than two topics are pending, Claude plans `topics.plan_batch` new ones, each with a format and an angle. It skips the queue and everything in `topics/published.yaml`.
+
+### Your back catalogue
+
+`topics/published.yaml` lists every story already on Medium. Seed it once from a Medium data export (Medium → Settings → Security and apps → **Download your information**, then unzip):
+
+```text
+run import-medium C:\Users\you\Downloads\medium-export-...
+```
+
+After that, every run adds new stories from the RSS feed and the workflow commits the file. The planner never repeats an entry, the reviewer flags overlap, and the writer links one or two related past articles inline. To write a topic again, set its status back to `pending`. To add a series teaser, give the topic a `series:` name.
 
 ## 9. Configuration reference
 
@@ -210,8 +221,9 @@ When fewer than two topics are pending, Claude plans `topics.plan_batch` new one
 | `publish.mode` | `local` | See [section 6](#6-how-articles-reach-medium) |
 | `publish.auto_open` | `true` | On a PC, open the paste page and a new Medium story when done |
 | `topics.auto_plan` / `plan_batch` | `true` / `5` | Refill the queue automatically |
-| `topics.medium_feed` | your RSS feed | Live Medium titles are added to the do-not-repeat list |
-| `topics.already_published` | (list) | Series the planner must not repeat |
+| `topics.medium_feed` | your RSS feed | New stories are added to `published_file` on every run |
+| `topics.published_file` | `topics/published.yaml` | Everything already on Medium: never repeated, related ones linked |
+| `topics.already_published` | `[]` | Extra subjects to avoid that are not on Medium |
 
 ## 10. Customising
 
