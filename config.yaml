@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────
+#  The Curly Brace — Medium autopilot settings
+#  Secrets (API keys) do NOT go here — they go in .env
+# ─────────────────────────────────────────────────────────────
+
+writer:
+  backend: claude-code            # claude-code = uses your Claude Pro login (no API key, no extra cost)
+                                  # api         = uses ANTHROPIC_API_KEY (pay-as-you-go, separate billing)
+  claude_code_model: opus         # model for backend claude-code: opus | sonnet
+  claude_code_fallback: sonnet    # used automatically if opus is unavailable / limited
+  model: claude-opus-5-5          # model for backend api
+  max_tokens: 32000
+  timeout_sec: 1500
+  review: true                    # second pass: strict technical + format review
+  auto_fix: true                  # third pass: apply the review fixes automatically
+  price_per_mtok: {input: 4, output: 20}   # only used for the cost line in the log
+
+article:
+  questions: 12
+  default_kicker: "Interview Ready"
+  cta: "Which question came up in your interview that isn't here? Drop it in the responses — I'll add it to the next revision with credit."
+  lead_tags:                      # track -> first Medium tag
+    csharp: Csharp
+    aspnetcore: Aspnetcore
+    design: Design Patterns
+    sql: Sql
+    azure: Azure
+    devops: Devops
+    ai: Artificial Intelligence
+    system-design: System Design
+
+hosting:                          # where images live so Medium can pull them
+  enabled: true
+  repo: deeppatel99/curlybrace-autopilot   # must be PUBLIC
+  branch: main
+  folder: posts
+  url_style: raw                  # raw | jsdelivr
+  pages_base_url: ""              # leave empty = auto (only used by mode: import)
+
+publish:
+  mode: local                     # local | import | api   (see README — switch to api only if you have a Medium token)
+  auto_open: true                 # local mode: opens paste.html + a new Medium story automatically
+  status: draft                   # draft | public | unlisted  -> keep draft, review then publish
+  publication_id: ""              # optional: post into a Medium publication you own
+  canonical_url: ""
+
+topics:
+  auto_plan: true                 # when < 2 topics are pending, Claude plans 5 new ones automatically
+  plan_batch: 5
+  already_published:              # so the planner never repeats your existing series
+    - "Interview Ready Parts 1-6: C# fundamentals (types, async/await, LINQ, generics, memory, collections)"
+    - "Interview Ready Parts 7-11: ASP.NET Core (middleware, DI, configuration, auth, minimal APIs)"
+    - "Interview Ready Parts 12-15: SOLID and design patterns"
+    - "Interview Ready Parts 16-18: SQL (indexes, joins, transactions, query tuning)"
+    - "Interview Ready Parts 19-20: Azure"
+    - "Interview Ready Part 21: DevOps"
+    - "Interview Ready Parts 22-23: AI for .NET developers"
+    - "Interview Ready Parts 24-25: coding rounds and system design"
+
+queue_file: topics/queue.yaml
+output_dir: out

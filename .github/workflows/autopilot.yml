@@ -1,0 +1,81 @@
+name: Curly Brace autopilot
+
+on:
+  schedule:
+    - cron: "30 3 * * 1"        # every Monday 09:00 IST (03:30 UTC)
+  workflow_dispatch:             # "Run workflow" button in the Actions tab
+    inputs:
+      topic:
+        description: "One-off topic (leave empty to take the next one from topics/queue.yaml)"
+        required: false
+      track:
+        description: "Track for a one-off topic (csharp, aspnetcore, design, sql, azure, devops, ai, system-design)"
+        required: false
+      mode:
+        description: "Publish mode override"
+        required: false
+        type: choice
+        options: ["", "api", "import", "local"]
+
+permissions:
+  contents: write                # lets the run upload images + update the queue
+
+concurrency:
+  group: autopilot
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Install Claude Code CLI (for writer.backend claude-code)
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Write, render, host, publish
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MEDIUM_TOKEN: ${{ secrets.MEDIUM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          IN_TOPIC: ${{ inputs.topic }}
+          IN_TRACK: ${{ inputs.track }}
+          IN_MODE: ${{ inputs.mode }}
+        run: |
+          MODE_FLAG=""
+          if [ -n "$IN_MODE" ]; then MODE_FLAG="--mode $IN_MODE"; fi
+          if [ -n "$IN_TOPIC" ]; then
+            python run.py topic "$IN_TOPIC" --track "$IN_TRACK" $MODE_FLAG
+          else
+            python run.py next $MODE_FLAG
+          fi
+
+      - name: Save queue progress
+        if: success()
+        run: |
+          git config user.name  "curlybrace-autopilot"
+          git config user.email "actions@users.noreply.github.com"
+          git add topics/queue.yaml
+          git diff --cached --quiet || git commit -m "queue: mark topic done"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push
+
+      - name: Keep the rendered files for 14 days
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: article-output
+          path: out/
+          retention-days: 14
+          if-no-files-found: ignore

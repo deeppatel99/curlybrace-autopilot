@@ -1,0 +1,21 @@
+# Topic queue — the agent takes the first item with status: pending.
+# status: pending | done | skipped. Add new topics at the bottom.
+# track decides the lead tag: csharp, aspnetcore, design, sql, azure, devops, ai, system-design
+
+- topic: 'Dependency Injection lifetimes: the captive dependency bug that leaks DbContext across requests'
+  track: aspnetcore
+  kicker: Interview Ready · Deep Dive
+  notes: Singleton holding a scoped service; ValidateScopes; IServiceScopeFactory in background services.
+  status: done
+  done_on: '2026-10-18'
+  slug: aspnetcore-di-lifetimes-captive-dependency-dbcontext
+- topic: 'EF Core performance: N+1 queries, tracking vs no-tracking, split queries and compiled queries'
+  track: sql
+  kicker: Interview Ready · Deep Dive
+  notes: Open with an API that went from 80 ms to 9 s after a navigation property was added.
+  status: pending
+- topic: 'Azure Service Bus in production: retries, dead-letter queues, sessions and idempotent consumers'
+  track: azure
+  kicker: Interview Ready · Deep Dive
+  notes: Duplicate payment processed twice because of lock expiry during a slow handler.
+  status: pending
