@@ -1,149 +1,200 @@
-# The Curly Brace — Medium Autopilot
+<p align="center">
+  <img src="docs/assets/banner.png" alt="Curly Brace Autopilot: one topic in, a fact-checked, fully illustrated Medium article out" width="100%">
+</p>
 
-An AI agent that writes, illustrates and posts articles to
-[medium.com/@thecurlybrace](https://medium.com/@thecurlybrace), with no copy-pasting and no image downloads.
+<p align="center">
+  <a href="https://github.com/deeppatel99/curlybrace-autopilot/actions/workflows/autopilot.yml"><img src="https://github.com/deeppatel99/curlybrace-autopilot/actions/workflows/autopilot.yml/badge.svg" alt="Weekly autopilot run"></a>
+  <img src="https://img.shields.io/badge/python-3.11%E2%80%933.14-3776AB?logo=python&logoColor=white" alt="Python 3.11 to 3.14">
+  <img src="https://img.shields.io/badge/writer-Claude%20Code-D97757?logo=anthropic&logoColor=white" alt="Writer: Claude Code">
+  <img src="https://img.shields.io/badge/scheduler-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white" alt="Scheduler: GitHub Actions">
+  <img src="https://img.shields.io/badge/infra%20cost-%240-34D399" alt="Infrastructure cost: $0">
+</p>
 
-```
-topics/queue.yaml ─► Claude writes ─► Claude reviews ─► fixes applied
-                                                         │
-             Medium draft ◄── images hosted on GitHub ◄── branded PNGs + GIFs rendered
-                 │
-          you review → Publish
-```
-
-Each run produces one article in the Interview Ready format: a production-failure hook,
-12 questions (testing → analogy → code → say this → trap → memory hook), 3–4 table images,
-2–3 diagrams, 2 animated GIFs, a 60-second revision sheet, a self-check, a teaser and the fixed CTA.
+<p align="center">
+  <a href="#what-one-run-produces">Showcase</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#engineering-decisions">Engineering decisions</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/SETUP.md">Full setup guide</a>
+</p>
 
 ---
 
-## 1. One-time setup (Windows)
+**Curly Brace Autopilot** is an autonomous editorial pipeline behind [The Curly Brace](https://medium.com/@thecurlybrace), a Medium publication of .NET and Azure interview deep dives.
 
-1. Install **Python 3.11+** from python.org and tick **"Add python.exe to PATH"**.
-2. Install **Claude Code**, which is the writer. It runs on your Claude Pro login, so you
-   don't need an API key and there's no extra bill. Open PowerShell and run:
+Every Monday it picks a topic, writes a 12-question article, puts it through an independent technical review, applies the fixes, renders 10+ branded diagrams, tables and animated GIFs, hosts everything, and sends a Telegram message with a one-tap **Copy article** page. A human reads the fact-check notes and presses Publish.
 
-   ```
-   irm https://claude.ai/install.ps1 | iex
-   ```
+It is not a prompt wrapper. The language model only writes text and **JSON specs** for the visuals. Deterministic Python code turns those specs into pixels, validates the article against a strict format contract, and handles the many quirks of getting rich content into Medium. The whole system runs on a Claude subscription and free GitHub features, so it needs no servers, no database and no paid API.
 
-   Close and reopen the terminal, type `claude`, choose **Claude account** login, sign in with
-   your Pro account, then type `/exit`. You only do this once.
-3. Double-click **`setup.bat`**. It creates `.venv`, installs the packages, creates `.env` and
-   copies `ci/autopilot.yml` into `.github/workflows/` for the scheduled GitHub run.
-4. Open `.env` in Notepad and paste your GitHub token (`GH_PAT`, see next section).
-5. In this folder, open a terminal and run:
+## What one run produces
 
-   ```
-   run check
-   ```
+Every image below came out of a single unattended run for *[EF Core Performance: N+1, No-Tracking, Split and Compiled Queries](posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/article.md)*. None of them is AI-generated art. All are rendered from JSON by [`design.py`](autopilot/design.py).
 
-   Every line should say `ok`.
+<table>
+  <tr>
+    <td width="50%"><img src="posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/01-cover.png" alt="Article cover with title and a code window"><br><sub><b>Cover</b>: title, hook and the one snippet that tells the story</sub></td>
+    <td width="50%"><img src="posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/04-gif-code-1.gif" alt="Animated code walkthrough highlighting lines step by step"><br><sub><b>Animated code walkthrough</b>: lines light up step by step with captions</sub></td>
+  </tr>
+  <tr>
+    <td><img src="posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/02-gif-flow-1.gif" alt="Animated flow diagram"><br><sub><b>Animated flow</b>: each stage activates in order</sub></td>
+    <td><img src="posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/05-diagram-compare-1.png" alt="Side-by-side comparison diagram"><br><sub><b>Compare diagram</b>: two approaches and a rule of thumb</sub></td>
+  </tr>
+  <tr>
+    <td><img src="posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/03-table-1.png" alt="Comparison table rendered as an image"><br><sub><b>Table as an image</b>: Medium cannot render Markdown tables</sub></td>
+    <td><img src="posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/images/11-revision.png" alt="60-second revision sheet"><br><sub><b>60-second revision sheet</b>: made to be screenshotted</sub></td>
+  </tr>
+</table>
 
-## 2. Keys
+Each article ships with a `review.md` that holds the reviewer's verdict, the issues it found and fixed, and a list of claims a human should double-check against official docs.
 
-| Key | Where to get it | Needed? |
-|---|---|---|
-| Claude Pro login | Step 2 above | **Yes**. Articles count against your Pro usage limits. |
-| `GH_PAT` | GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate → Repository access: *Only select repositories* → `curlybrace-autopilot` → Permissions → **Contents: Read and write** | **Yes**, for image hosting |
-| `MEDIUM_TOKEN` | Medium → profile picture → Settings → **Security and apps** → Integration tokens | Only for `mode: api` (many accounts no longer have this option) |
-| `ANTHROPIC_API_KEY` | console.anthropic.com | Only if you set `writer.backend: api` (paid separately from Pro) |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | @BotFather | Optional ping when a draft is ready |
+## Highlights
 
-**The GitHub repo must be public**, so Medium can fetch the images.
+- **Three-pass authoring.** A writer, a strict principal-engineer reviewer and an editor run as separate Claude calls with separate system prompts. The reviewer returns `READY` or `NEEDS FIXES` plus fact-check notes, and the editor applies every high and medium issue.
+- **Visuals as code.** Cover, tables, three diagram styles, two GIF styles and a revision sheet, all drawn with Pillow in one consistent brand system. GIFs share a single palette across frames, so colours do not flicker.
+- **Format contract, enforced in code.** Every run is checked for 12 questions, the six required parts per question, the exact call to action, exactly five tags, the visual mix and closing sections. Any deviation is reported in `review.md`.
+- **Self-refilling topic queue.** When fewer than two topics remain, Claude plans five more, avoiding everything already published and rotating across tracks (C#, ASP.NET Core, SQL, Azure, DevOps, AI, system design).
+- **Zero infrastructure.** GitHub Actions is the scheduler, the GitHub Contents API is the image CDN, GitHub Pages serves the paste page, and Claude Code runs headless on a Pro subscription.
+- **Built for Medium's real editor.** A one-click copy page puts the title, text, hosted images, GIFs and code on the clipboard in the shape Medium's editor accepts on paste, so code blocks stay intact and quotes gain no stray lines.
+- **Human in the loop, by design.** The pipeline never publishes on its own. A Telegram update lists what was done, the fact-checks to confirm and what runs next, and a failed run sends an alert with a link to the logs.
+- **Resilient by default.** A broken visual spec is repaired by the model once and otherwise skipped with a warning. One bad image never kills a run, and uploads retry on transient GitHub errors.
 
-## 3. Choose how the article reaches Medium
+## How it works
 
-Set `publish.mode` in `config.yaml`:
-
-| Mode | What happens | Your manual work |
-|---|---|---|
-| `local` (default) | Builds `paste.html` with publicly hosted images and opens it next to a blank Medium story | Ctrl+A → Ctrl+C in paste.html → Ctrl+V in Medium → delete the yellow note → add tags → Publish |
-| `import` | Builds a hosted HTML page; you paste its URL into medium.com/p/import | 1 paste + Publish. Needs GitHub Pages on (Settings → Pages → Deploy from branch `main`). Medium adds a canonical link to that page. |
-| `api` | Creates a **draft** on Medium through the API | Open draft → read → Publish |
-
-Medium stopped giving out **new** integration tokens, so `api` only works if your account still
-shows the Integration tokens section. Everything before the Medium step is automatic in every mode.
-
-`publish.status` (api mode) is `draft` by default. Keep it that way: one wrong code sample costs
-more credibility than the 5 minutes a review takes.
-
-## 4. Daily use
-
+```mermaid
+flowchart LR
+    subgraph CI["GitHub Actions · every Monday 09:00 IST"]
+        Q[("Topic queue<br/>topics/queue.yaml")] --> W["Write<br/>Claude"]
+        W --> R["Review<br/>Claude"]
+        R -- "NEEDS FIXES" --> F["Fix<br/>Claude"]
+        R -- "READY" --> P
+        F --> P["Parse and validate<br/>article.py"]
+        P --> V["Render visuals<br/>design.py · Pillow"]
+        V --> H["Host images<br/>GitHub Contents API"]
+        H --> S["paste.html<br/>GitHub Pages"]
+    end
+    S --> T["Telegram update"]
+    T --> U(["Human: Copy → Medium → Publish"])
 ```
-run next                                    take the next topic from topics/queue.yaml
+
+| Stage | Module | What happens |
+|---|---|---|
+| Plan | [`writer.py`](autopilot/writer.py) | Refills the queue with five new topics when it runs low |
+| Write | [`writer.py`](autopilot/writer.py), [`prompts.py`](autopilot/prompts.py) | Produces Markdown plus fenced `asset` blocks containing JSON specs |
+| Review and fix | [`writer.py`](autopilot/writer.py) | An independent reviewer audits accuracy, format, assets and language, and an editor applies the fixes |
+| Parse | [`article.py`](autopilot/article.py) | Reads front matter and swaps each `asset` block for a placeholder |
+| Render | [`design.py`](autopilot/design.py) | Turns each spec into a branded PNG or GIF |
+| Validate | [`article.py`](autopilot/article.py) | Checks the article against the format contract |
+| Host | [`host.py`](autopilot/host.py) | Commits images and pages to `posts/<slug>/` through the GitHub API |
+| Publish | [`publish.py`](autopilot/publish.py) | Builds the preview page and the Medium-shaped paste page |
+| Notify | [`pipeline.py`](autopilot/pipeline.py), [`notify.py`](autopilot/notify.py) | Sends the Telegram update and writes the GitHub run summary |
+
+## Engineering decisions
+
+**The model writes specs, code draws the pixels.** Asking a model for finished images gives inconsistent results that cannot be checked. Here the model emits small JSON objects with hard limits, such as at most four columns or 22 characters per node title, and `design.py` renders them the same way every time. The brand stays consistent, and every visual is diffable text in `source.md`.
+
+**Separate writer, reviewer and editor.** A model reviewing its own draft in the same conversation tends to approve it. Splitting the roles into independent calls with opposing incentives catches real problems. In one run the reviewer flagged an SQL-injection example that used an `int` parameter and so could never carry a payload, plus numbers in the hook that disagreed with the GIF.
+
+**A contract, not a vibe.** The article format is written down in the prompt and verified in code by `validate()`. Drift shows up as a warning, not as a surprise after publishing.
+
+**Paste instead of import.** Medium's import tool adds a canonical link back to the source page, which hands the search credit to that page. A paste keeps the story fully native to Medium. The paste page is served with `noindex` so it never competes with the article in search.
+
+**Medium's editor is the real target.** Pasted HTML is rewritten into the shape Medium itself exports. Code blocks become a single `<pre>` joined with `<br>`, because Medium splits a block at every blank line, and blockquotes are flattened so no empty line follows them.
+
+**A subscription as a headless engine.** The writer shells out to `claude -p` with tools disabled, MCP servers off and user-level settings ignored (`--setting-sources project --strict-mcp-config`), so local plugins or instructions cannot leak into an article. An `ANTHROPIC_API_KEY` in the environment is removed so billing stays on the subscription. A paid API backend is one config line away.
+
+**Free platform pieces, no glue servers.** Scheduling, storage, CDN and static hosting all come from a public GitHub repository. The pipeline uses the Contents API instead of `git`, so the same code runs on a laptop and in CI.
+
+## Visuals as code
+
+The writer places a block like this wherever an image belongs:
+
+````markdown
+```asset
+{"type": "diagram", "style": "compare", "title": "Single query vs split query",
+ "left":  {"title": "Single query", "points": ["One round trip", "Cartesian explosion on multiple collections"]},
+ "right": {"title": "Split query",  "points": ["One query per collection", "No row duplication"]},
+ "verdict": "Split when you include two or more collections"}
+```
+````
+
+`article.py` swaps the block for an image placeholder, `design.py` renders it, and the hosted URL replaces the placeholder. The available types are `cover`, `table`, `diagram` (`flow`, `layers`, `compare`), `gif` (`flow`, `code`) and `revision`, all documented with their size limits in [`prompts.py`](autopilot/prompts.py).
+
+## Quick start
+
+**Prerequisites:** Python 3.11 to 3.14 (3.15 has no prebuilt wheels for some dependencies yet), [Claude Code](https://claude.com/claude-code) signed in with a Claude Pro or Max account, and a public GitHub repository for image hosting.
+
+```bash
+git clone https://github.com/deeppatel99/curlybrace-autopilot.git
+cd curlybrace-autopilot
+
+# Windows
+setup.bat
+run file samples\sample-article.md --dry-run
+
+# macOS / Linux
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env
+.venv/bin/python run.py file samples/sample-article.md --dry-run
+```
+
+The dry run renders the sample article and its visuals into `out/` without calling Claude or uploading anything. Open `preview.html` to see the result. To go further, add a GitHub token to `.env`, point `hosting.repo` in [`config.yaml`](config.yaml) at your repository, and run `run check`. The [setup guide](docs/SETUP.md) covers every key, the GitHub Actions secrets and the Telegram bot.
+
+## Usage
+
+```text
+run check                                   verify Claude login, hosting, Telegram and the queue
+run next                                    write and publish the next queued topic
 run topic "Span<T> and Memory<T>" --track csharp
-run add "Polly v8 resilience pipelines" --track aspnetcore    add to the queue
-run file samples\sample-article.md --dry-run                  render only, upload nothing
+run add "Polly v8 resilience pipelines" --track aspnetcore
+run file path/to/article.md                 render an existing article, no Claude calls
+
+  --dry-run      render locally, upload nothing
+  --no-review    skip the review and fix passes
+  --mode         local | import | api
 ```
 
-Output for every run goes to `out\<date>-<slug>\`:
+On macOS and Linux, use `.venv/bin/python run.py <command>`. In CI the same commands run from [`.github/workflows/autopilot.yml`](.github/workflows/autopilot.yml), which can also be started by hand with an optional one-off topic.
 
-- `images\`: every PNG and GIF
-- `preview.html`: local review copy
-- `article.md`: final markdown
-- `review.md`: your checklist, format checks, and the AI reviewer's fact-check notes
+## Project structure
 
-The same `article.md` and `review.md` are also saved in the GitHub repo under `posts/<slug>/`.
-
-## 4b. How the next topic is chosen
-
-`run next` takes the first `pending` topic in `topics/queue.yaml`. When fewer than 2 are left,
-Claude plans 5 new ones on its own, avoiding everything already done and the series listed under
-`topics.already_published` in `config.yaml`, and adds them to the queue. You can still add your
-own topics at any time with `run add "..." --track ...`, or by editing the file. Put a real
-production incident in `notes` and the article opens with it.
-
-## 5. Run it on a schedule
-
-**Option A: GitHub Actions (recommended, your PC can stay off)**
-
-1. Push this folder to the public repo (`.env` is git-ignored and never pushed).
-2. On your PC run `claude setup-token`, which prints a long-lived token for your Pro subscription.
-   Repo → Settings → Secrets and variables → Actions → add it as `CLAUDE_CODE_OAUTH_TOKEN`
-   (plus `MEDIUM_TOKEN` and the Telegram keys if you use them). You do not need `GH_PAT` here,
-   because Actions provides its own token.
-3. Repo → Settings → Actions → General → Workflow permissions → **Read and write**.
-4. Repo → Settings → Pages → Source: **Deploy from a branch** → `main` / root. This makes each
-   run's `paste.html` open as a web page, so you can paste from any PC. These pages are marked
-   noindex, so Google won't treat them as duplicates of your Medium article.
-5. It runs every Monday at 09:00 IST. To change that, edit `cron` in
-   `.github/workflows/autopilot.yml`. To run it now, go to Actions → Curly Brace autopilot → **Run workflow**.
-
-**Option B: Windows Task Scheduler (runs on your PC)**
-
-```
-schtasks /create /tn "CurlyBraceAutopilot" /sc weekly /d MON /st 09:00 /tr "\"%CD%\run.bat\" next"
+```text
+├── run.py                   CLI entry point (check, next, topic, add, file)
+├── config.yaml              all non-secret settings
+├── autopilot/
+│   ├── pipeline.py          orchestrates one run, end to end
+│   ├── writer.py            Claude backends (Claude Code CLI or API): write, review, fix, plan
+│   ├── prompts.py           writer, reviewer, editor and planner prompts, plus the asset spec
+│   ├── article.py           front matter, asset extraction, format validation
+│   ├── design.py            brand design system and the PNG/GIF renderers
+│   ├── host.py              GitHub Contents API uploads and public URLs
+│   ├── publish.py           preview and paste pages, Medium-specific HTML shaping
+│   ├── queue.py             topic queue
+│   └── notify.py            Telegram and GitHub run summary
+├── topics/queue.yaml        upcoming and completed topics
+├── posts/<slug>/            published output: images, paste.html, article.md, review.md
+├── .github/workflows/       weekly schedule and failure alert
+├── fonts/                   Inter and JetBrains Mono (SIL OFL)
+├── samples/                 demo article for offline runs
+└── test_autopilot.py        checks for paste shaping and schedule parsing
 ```
 
-## 6. Make it yours
+## Testing
 
-| Want to change | Edit |
-|---|---|
-| Voice, article structure, number of questions | `autopilot/prompts.py`, `config.yaml → article` |
-| Colours, fonts, layouts of the images | `autopilot/design.py`. To use your own `build_cover_v2()`, swap it into `render_cover` |
-| Model / cost | `config.yaml → writer.claude_code_model` (or `writer.model` for the API backend) |
-| What gets written next | `topics/queue.yaml` |
+```bash
+python test_autopilot.py              # paste-HTML shaping and next-run date parsing
+run file samples/sample-article.md --dry-run   # full render path, offline
+run check                             # live credentials and integrations
+```
 
-## 7. Cost
+## Roadmap
 
-- **Default (`writer.backend: claude-code`): ₹0 extra.** Each article uses three Claude calls
-  (write, review, fix) from your Pro plan's usage limits. If you hit the limit, wait for the reset
-  or set `claude_code_model: sonnet`, which uses less.
-- `writer.backend: api`: about $0.50–$1.50 per article with Opus 5.5, billed separately on
-  console.anthropic.com.
-- GitHub hosting and Actions are free for a public repo.
+- [ ] Compile every C# snippet in CI with `dotnet build` before an article goes out
+- [ ] Cross-post to dev.to and Hashnode with a canonical link to Medium
+- [ ] Generate a LinkedIn post and an X thread alongside each article
+- [ ] Reply `skip`, `redo` or `add: <topic>` to the Telegram bot to steer the queue from a phone
+- [ ] Bundle every five revision sheets into a downloadable PDF
 
-## 8. Troubleshooting
+## Author
 
-| Symptom | Fix |
-|---|---|
-| `Claude Code CLI not found` | Do step 2, then reopen the terminal. |
-| `not logged in` / usage limit | Run `claude` once and log in with your Pro account. On a limit, wait for the reset. |
-| Broken images in the Medium draft | Repo is private, or the images were still propagating. Make it public and rerun. |
-| `Medium token rejected` | Switch `publish.mode` to `import` or `local`. |
-| `Expected 12 questions, found 11` in review.md | The writer slipped. Fix it in the draft or rerun `run topic ...`. |
-| Asset skipped (invalid JSON) | Rare. The JSON is repaired automatically once, and anything still broken is listed in review.md. |
-| Only 3 tags on the draft | Older API integrations keep only the first 3. Add the other 2 in the editor. |
+Built by **Deep Patel**, a senior .NET and Azure backend engineer. Read the articles at [medium.com/@thecurlybrace](https://medium.com/@thecurlybrace).
 
-Fonts: Inter and JetBrains Mono, both under the SIL Open Font License.
+Fonts: [Inter](https://rsms.me/inter/) and [JetBrains Mono](https://www.jetbrains.com/lp/mono/), both under the SIL Open Font License. Licence texts are in [`fonts/`](fonts/).
