@@ -126,9 +126,14 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
             host.upload(files["paste"], paste_path, f"paste page: {art.slug}")
             result["paste_url"] = host.pages_url(paste_path)
             if os.environ.get("CI"):
-                next_steps.insert(0, f"Open {result['paste_url']} (GitHub Pages), Ctrl+A, Ctrl+C, paste into "
-                                     "https://medium.com/new-story")
-                report = report.replace("## Format check", f"- [ ] {next_steps[0]}\n\n## Format check", 1)
+                step = (f"Open {result['paste_url']} (GitHub Pages), Ctrl+A, Ctrl+C, paste into "
+                        "https://medium.com/new-story")
+                if mode == "local":  # next_steps[0] is the runner's local paste.html path — useless off the runner
+                    report = report.replace(next_steps[0], step, 1)
+                    next_steps[0] = step
+                else:
+                    next_steps.insert(0, step)
+                    report = report.replace("## Format check", f"- [ ] {step}\n\n## Format check", 1)
         host.upload(None, host.remote_path(art.slug, "review.md"), f"review: {art.slug}", content=report.encode())
         host.upload(None, host.remote_path(art.slug, "article.md"), f"article: {art.slug}",
                     content=art.to_markdown(use_urls=True).encode())
