@@ -17,7 +17,9 @@ def load(path: Path) -> list[dict]:
 def save(path: Path, items: list[dict]) -> None:
     header = ("# Topic queue — the agent takes the first item with status: pending.\n"
               "# status: pending | done | skipped. Add new topics at the bottom.\n"
-              "# track decides the lead tag: csharp, aspnetcore, design, sql, azure, devops, ai, system-design\n\n")
+              "# track decides the lead tag: csharp, aspnetcore, design, sql, azure, devops, ai, system-design\n"
+              "# format: deep-dive | bug-hunt | build-log | versus | interview | news (empty = config default)\n"
+              "# notes: your REAL experience becomes the opening story. auto: true = planner idea, never told as real\n\n")
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(header)
         yaml.safe_dump(items, fh, sort_keys=False, allow_unicode=True, width=100)

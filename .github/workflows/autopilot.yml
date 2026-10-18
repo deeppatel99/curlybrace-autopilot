@@ -11,6 +11,11 @@ on:
       track:
         description: "Track for a one-off topic (csharp, aspnetcore, design, sql, azure, devops, ai, system-design)"
         required: false
+      format:
+        description: "Format for a one-off topic"
+        required: false
+        type: choice
+        options: ["", "deep-dive", "bug-hunt", "build-log", "versus", "interview", "news"]
       mode:
         description: "Publish mode override"
         required: false
@@ -27,7 +32,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60              # research mode verifies facts on the web: three longer Claude calls
     steps:
       - uses: actions/checkout@v4
 
@@ -52,11 +57,14 @@ jobs:
           IN_TOPIC: ${{ inputs.topic }}
           IN_TRACK: ${{ inputs.track }}
           IN_MODE: ${{ inputs.mode }}
+          IN_FORMAT: ${{ inputs.format }}
         run: |
           MODE_FLAG=""
           if [ -n "$IN_MODE" ]; then MODE_FLAG="--mode $IN_MODE"; fi
+          FORMAT_FLAG=""
+          if [ -n "$IN_FORMAT" ]; then FORMAT_FLAG="--format $IN_FORMAT"; fi
           if [ -n "$IN_TOPIC" ]; then
-            python run.py topic "$IN_TOPIC" --track "$IN_TRACK" $MODE_FLAG
+            python run.py topic "$IN_TOPIC" --track "$IN_TRACK" $FORMAT_FLAG $MODE_FLAG
           else
             python run.py next $MODE_FLAG
           fi

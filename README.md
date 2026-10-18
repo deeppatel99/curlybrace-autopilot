@@ -22,13 +22,13 @@
 
 **Curly Brace Autopilot** is an autonomous editorial pipeline behind [The Curly Brace](https://medium.com/@thecurlybrace), a Medium publication of .NET and Azure interview deep dives.
 
-Every Monday it picks a topic, writes a 12-question article, puts it through an independent technical review, applies the fixes, renders 10+ branded diagrams, tables and animated GIFs, hosts everything, and sends a Telegram message with a one-tap **Copy article** page. A human reads the fact-check notes and presses Publish.
+Every Monday it picks a topic and the format that suits it best (a deep dive, a bug hunt, a build log, an X-vs-Y decision guide, an interview set or a news analysis). It writes the article with facts checked against official documentation, puts it through an independent technical review, applies the fixes, renders branded diagrams, tables and animated GIFs, hosts everything, and sends a Telegram message with a one-tap **Copy article** page. A human reads the fact-check notes and presses Publish.
 
 It is not a prompt wrapper. The language model only writes text and **JSON specs** for the visuals. Deterministic Python code turns those specs into pixels, validates the article against a strict format contract, and handles the many quirks of getting rich content into Medium. The whole system runs on a Claude subscription and free GitHub features, so it needs no servers, no database and no paid API.
 
 ## What one run produces
 
-Every image below came out of a single unattended run for *[EF Core Performance: N+1, No-Tracking, Split and Compiled Queries](posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/article.md)*. None of them is AI-generated art. All are rendered from JSON by [`design.py`](autopilot/design.py).
+Every image below came out of a single unattended run (an interview-set article) for *[EF Core Performance: N+1, No-Tracking, Split and Compiled Queries](posts/ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries/article.md)*. None of them is AI-generated art. All are rendered from JSON by [`design.py`](autopilot/design.py).
 
 <table>
   <tr>
@@ -49,10 +49,12 @@ Each article ships with a `review.md` that holds the reviewer's verdict, the iss
 
 ## Highlights
 
-- **Three-pass authoring.** A writer, a strict principal-engineer reviewer and an editor run as separate Claude calls with separate system prompts. The reviewer returns `READY` or `NEEDS FIXES` plus fact-check notes, and the editor applies every high and medium issue.
+- **Six article formats.** Deep dive, bug hunt, build log, X vs Y, interview set (6 to 12 questions, as many as the topic supports) and news analysis. Each has its own shape, length and visual budget, and the planner picks the right one for each topic.
+- **Verified, not generated.** In research mode the writer and the reviewer check versions, APIs, defaults and dates against official docs with web search, link those sources inline, and mark every claim in the fact-check notes as verified or unverified. Invented numbers, quotes and "it happened to us" incidents are explicitly forbidden.
+- **Three-pass authoring.** A writer, a strict principal-engineer reviewer and an editor run as separate Claude calls with separate system prompts. The reviewer judges accuracy, whether the title's promise is delivered and whether a senior reader would learn something, and the editor applies every high and medium issue.
 - **Visuals as code.** Cover, tables, three diagram styles, two GIF styles and a revision sheet, all drawn with Pillow in one consistent brand system. GIFs share a single palette across frames, so colours do not flicker.
-- **Format contract, enforced in code.** Every run is checked for 12 questions, the six required parts per question, the exact call to action, exactly five tags, the visual mix and closing sections. Any deviation is reported in `review.md`.
-- **Self-refilling topic queue.** When fewer than two topics remain, Claude plans five more, avoiding everything already published and rotating across tracks (C#, ASP.NET Core, SQL, Azure, DevOps, AI, system design).
+- **Format contract, enforced in code.** Every article is checked against the rules of its own format: length band, visual budget, cover first, exactly five tags, the exact call to action, and for interview sets the question structure. Any deviation is reported in `review.md`.
+- **Self-refilling topic queue.** When fewer than two topics remain, Claude plans five more, each with a format and an angle. It skips everything in the queue and everything already live on Medium (read from the RSS feed), and rotates across tracks (C#, ASP.NET Core, SQL, Azure, DevOps, AI, system design).
 - **Zero infrastructure.** GitHub Actions is the scheduler, the GitHub Contents API is the image CDN, GitHub Pages serves the paste page, and Claude Code runs headless on a Pro subscription.
 - **Built for Medium's real editor.** A one-click copy page puts the title, text, hosted images, GIFs and code on the clipboard in the shape Medium's editor accepts on paste, so code blocks stay intact and quotes gain no stray lines.
 - **Human in the loop, by design.** The pipeline never publishes on its own. A Telegram update lists what was done, the fact-checks to confirm and what runs next, and a failed run sends an alert with a link to the logs.
@@ -78,9 +80,9 @@ flowchart LR
 
 | Stage | Module | What happens |
 |---|---|---|
-| Plan | [`writer.py`](autopilot/writer.py) | Refills the queue with five new topics when it runs low |
-| Write | [`writer.py`](autopilot/writer.py), [`prompts.py`](autopilot/prompts.py) | Produces Markdown plus fenced `asset` blocks containing JSON specs |
-| Review and fix | [`writer.py`](autopilot/writer.py) | An independent reviewer audits accuracy, format, assets and language, and an editor applies the fixes |
+| Plan | [`writer.py`](autopilot/writer.py) | Refills the queue with five new topics, each with a format and an angle |
+| Write | [`writer.py`](autopilot/writer.py), [`prompts.py`](autopilot/prompts.py) | Researches, then produces Markdown in the topic's format plus fenced `asset` blocks containing JSON specs |
+| Review and fix | [`writer.py`](autopilot/writer.py) | An independent reviewer verifies facts and audits reader value, format and assets, and an editor applies the fixes |
 | Parse | [`article.py`](autopilot/article.py) | Reads front matter and swaps each `asset` block for a placeholder |
 | Render | [`design.py`](autopilot/design.py) | Turns each spec into a branded PNG or GIF |
 | Validate | [`article.py`](autopilot/article.py) | Checks the article against the format contract |
@@ -91,6 +93,10 @@ flowchart LR
 ## Engineering decisions
 
 **The model writes specs, code draws the pixels.** Asking a model for finished images gives inconsistent results that cannot be checked. Here the model emits small JSON objects with hard limits, such as at most four columns or 22 characters per node title, and `design.py` renders them the same way every time. The brand stays consistent, and every visual is diffable text in `source.md`.
+
+**Trust over volume.** An article that is wrong once costs more readers than ten good ones earn. So the prompts forbid invented figures and incidents. A story the author actually lived is passed in as "author's notes" and used faithfully, while a planner's idea is labelled as an idea and must be told as a recognisable scenario, never as the author's past. With research on, every version-specific claim is checked against official docs before it is written and again in review.
+
+**Format follows the topic.** A bug is best told as a hunt, a design as a build log, a confusing choice as a decision guide. Each format in [`prompts.py`](autopilot/prompts.py) defines its shape, target length and visual budget, and `validate()` checks the article against that format instead of one fixed template.
 
 **Separate writer, reviewer and editor.** A model reviewing its own draft in the same conversation tends to approve it. Splitting the roles into independent calls with opposing incentives catches real problems. In one run the reviewer flagged an SQL-injection example that used an `int` parameter and so could never carry a payload, plus numbers in the hook that disagreed with the GIF.
 
@@ -143,10 +149,11 @@ The dry run renders the sample article and its visuals into `out/` without calli
 ```text
 run check                                   verify Claude login, hosting, Telegram and the queue
 run next                                    write and publish the next queued topic
-run topic "Span<T> and Memory<T>" --track csharp
-run add "Polly v8 resilience pipelines" --track aspnetcore
+run topic "Span<T> and Memory<T>" --track csharp --format deep-dive
+run add "Polly v8 resilience pipelines" --track aspnetcore --format versus
 run file path/to/article.md                 render an existing article, no Claude calls
 
+  --format       deep-dive | bug-hunt | build-log | versus | interview | news
   --dry-run      render locally, upload nothing
   --no-review    skip the review and fix passes
   --mode         local | import | api
@@ -162,7 +169,7 @@ On macOS and Linux, use `.venv/bin/python run.py <command>`. In CI the same comm
 ├── autopilot/
 │   ├── pipeline.py          orchestrates one run, end to end
 │   ├── writer.py            Claude backends (Claude Code CLI or API): write, review, fix, plan
-│   ├── prompts.py           writer, reviewer, editor and planner prompts, plus the asset spec
+│   ├── prompts.py           article formats, writer/reviewer/editor/planner prompts, asset spec
 │   ├── article.py           front matter, asset extraction, format validation
 │   ├── design.py            brand design system and the PNG/GIF renderers
 │   ├── host.py              GitHub Contents API uploads and public URLs

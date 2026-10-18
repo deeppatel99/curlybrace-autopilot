@@ -38,7 +38,8 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
             pending = [i for i in items if i.get("status", "pending") == "pending"]
             if len(pending) < 2 and cfg.get("topics.auto_plan", True):
                 log("Queue is running low — asking Claude to plan the next topics...")
-                covered = [i["topic"] for i in items] + list(cfg.get("topics.already_published", []) or [])
+                covered = ([i["topic"] for i in items] + list(cfg.get("topics.already_published", []) or [])
+                           + _published_titles(cfg))
                 new = writer.plan_topics(covered, int(cfg.get("topics.plan_batch", 5)))
                 items += new
                 q.save(cfg.queue_file, items)
@@ -47,11 +48,12 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
             if not item:
                 log("Queue is empty — nothing to do. Add topics to topics/queue.yaml.")
                 return {"status": "empty"}
-        log(f"Writing: {item['topic']}  (model: {writer.model})")
+        fmt = writer.format_of(item)
+        log(f"Writing: {item['topic']}  ({fmt}, model: {writer.model}, research: {'on' if writer.research else 'off'})")
         raw_md = writer.write(item, next_item.get("topic") if next_item else item.get("next"))
         if cfg.get("writer.review", True) and not skip_review:
-            log("Reviewing for technical accuracy and format...")
-            review_md = writer.review(raw_md)
+            log("Reviewing for accuracy, reader value and format...")
+            review_md = writer.review(raw_md, fmt)
             if "NEEDS FIXES" in review_md.upper()[:200] and cfg.get("writer.auto_fix", True):
                 log("Applying review fixes...")
                 raw_md = writer.fix(raw_md, review_md)
@@ -163,9 +165,11 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
 
 def _update_message(cfg, art, mode, result, review_md, fixed, warnings, next_steps, host) -> str:
     """Telegram update (HTML): what was done, what you need to do, what happens next."""
+    from .prompts import FORMATS
+
     e = html.escape
-    md = art.to_markdown(use_urls=True)
-    n_q = len(re.findall(r"^#+ Q\d+", md, re.M))
+    words = art_mod.word_count(art)
+    label = FORMATS.get(art.format, {}).get("kicker", art.format or "Article")
     issues = review_md.count("[severity:")
     facts = review_md.split("Fact-check notes", 1)[1].count("\n- ") if "Fact-check notes" in review_md else 0
     review_link = (f"https://github.com/{host.repo}/blob/{host.branch}/{host.remote_path(art.slug, 'review.md')}"
@@ -174,7 +178,7 @@ def _update_message(cfg, art, mode, result, review_md, fixed, warnings, next_ste
     lines = ["<b>{ } The Curly Brace</b> · autopilot update", "",
              "✅ <b>Ready to publish</b>", f"<b>{e(art.title)}</b>", f"<i>{e(art.subtitle)}</i>", "",
              "📝 <b>What was done</b>",
-             f"• {n_q} questions · {len(md.split()):,} words · {len(art.assets)} visuals"]
+             f"• {e(label)} · {words:,} words (~{max(1, round(words / 230))} min read) · {len(art.assets)} visuals"]
     if issues:
         lines.append(f"• AI review found {issues} issues" + (" → all auto-fixed" if fixed else ""))
     elif "VERDICT" in review_md:
@@ -204,6 +208,19 @@ def _update_message(cfg, art, mode, result, review_md, fixed, warnings, next_ste
     if warnings:
         lines += ["", f"⚠️ {len(warnings)} format warning(s) — see the review notes"]
     return "\n".join(lines)
+
+
+def _published_titles(cfg) -> list[str]:
+    """Titles already on Medium (RSS feed), so the planner never repeats them. Best effort."""
+    feed = cfg.get("topics.medium_feed")
+    if not feed:
+        return []
+    try:
+        import requests
+        xml = requests.get(feed, headers={"User-Agent": "Mozilla/5.0"}, timeout=20).text
+        return [html.unescape(t) for t in re.findall(r"<item>\s*<title><!\[CDATA\[(.*?)\]\]>", xml)]
+    except Exception:
+        return []
 
 
 def next_run(workflow: Path, now: datetime | None = None) -> str | None:

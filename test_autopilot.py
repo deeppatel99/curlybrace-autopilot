@@ -24,4 +24,40 @@ with tempfile.TemporaryDirectory() as d:
     wf.write_text('    - cron: "*/5 * * * *"\n')           # not a simple schedule -> no date
     assert next_run(wf, sun) is None
 
+# ── article formats ───────────────────────────────────────────────────────
+import re  # noqa: E402
+
+from autopilot import config  # noqa: E402
+from autopilot import prompts  # noqa: E402
+from autopilot.article import Asset, Article, validate  # noqa: E402
+from autopilot.writer import cta_for, fill  # noqa: E402
+
+cfg = config.load()
+
+
+def art(fmt, body, n_assets=5):
+    assets = [Asset(index=i + 1, spec={"type": "cover" if i == 0 else "table"}) for i in range(n_assets)]
+    return Article("T", "S", "t", ["A", "B", "C", "D", "E"], body, fmt, assets)
+
+
+cta = cta_for(cfg, "deep-dive")
+deep = art("deep-dive", "word " * 1800 + cta)
+assert validate(deep, cfg) == [], validate(deep, cfg)                       # no question rules for a deep dive
+assert any("words" in w for w in validate(art("deep-dive", "word " * 300 + cta), cfg))   # too short is flagged
+
+q = ("## Q{n}. Why?\n**What they're actually testing:** x\n**The analogy:** x\n**Say this in the interview:**\n> x\n"
+     "**The trap / follow-up:** x\n**Memory hook:** *x*\n---\n")
+icta = cta_for(cfg, "interview")
+interview = art("interview", "".join(q.format(n=n) for n in range(1, 8)) + "word " * 2600 + "\n## Self-Check\n" + icta, 6)
+assert validate(interview, cfg) == [], validate(interview, cfg)            # 7 questions is fine, not forced to 12
+three = art("interview", "".join(q.format(n=n) for n in range(1, 4)) + "word " * 2600 + "\n## Self-Check\n" + icta, 6)
+assert any("3 questions" in w for w in validate(three, cfg))
+assert icta != cta                                                          # interview keeps its own CTA
+
+for name, spec in prompts.FORMATS.items():                                 # every slot gets filled
+    s = fill(prompts.WRITER_BASE, research=prompts.RESEARCH_ON, format=name, guide=spec["guide"], cta=cta,
+             words_min=1, words_max=2, visuals_min=1, visuals_max=2)
+    left = set(re.findall(r"\{(research|format|guide|cta|words_min|words_max|visuals_min|visuals_max)\}", s))
+    assert not left, (name, left)
+
 print("ok")

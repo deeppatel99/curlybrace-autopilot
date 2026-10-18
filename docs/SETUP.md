@@ -123,7 +123,7 @@ Install, then write, review, fix, render, host and notify. After that the workfl
 
 Recommended BotFather settings: `/setjoingroups` → **Disable**, a profile picture with `/setuserpic`, and a short `/setdescription`. Skip `/setcommands`, because the bot only sends messages.
 
-Each update has three parts: **What was done** (questions, words, visuals, review results), **Your turn** (paste page, new Medium story, fact-checks to confirm, tags) and **What's next** (next topic, queue size, next run).
+Each update has three parts: **What was done** (format, words and read time, visuals, review results), **Your turn** (paste page, new Medium story, fact-checks to confirm, tags) and **What's next** (next topic, queue size, next run).
 
 ## 6. How articles reach Medium
 
@@ -141,13 +141,14 @@ The paste page reshapes the HTML for Medium's editor: code blocks survive blank 
 
 ```text
 run next                                    next queued topic
-run topic "Span<T> and Memory<T>" --track csharp    one-off topic, queue untouched
-run add "Polly v8 resilience pipelines" --track aspnetcore
+run topic "Span<T> and Memory<T>" --track csharp --format deep-dive   one-off topic, queue untouched
+run add "Polly v8 resilience pipelines" --track aspnetcore --format versus
 run file out\2026-10-18-<slug>\source.md    re-render an article without calling Claude
 ```
 
 | Flag | Effect |
 |---|---|
+| `--format <name>` | Format for `topic` / `add` (see [section 8](#8-topic-queue)) |
 | `--dry-run` | Render locally, upload nothing, send no Telegram message |
 | `--no-review` | Skip the review and fix passes |
 | `--mode local\|import\|api` | Override `publish.mode` for this run |
@@ -170,14 +171,26 @@ Each run writes `out/<date>-<slug>/`:
 `topics/queue.yaml` is an ordered list. The first `pending` topic is written next.
 
 ```yaml
-- topic: "Azure Service Bus in production: retries, dead-letter queues, sessions and idempotent consumers"
+- topic: "The payment that was charged twice: lock expiry, retries and idempotent consumers in Azure Service Bus"
   track: azure                      # picks the lead tag (config.yaml → article.lead_tags)
-  kicker: "Interview Ready · Deep Dive"
-  notes: "Duplicate payment processed twice because of lock expiry during a slow handler."
+  format: bug-hunt                  # see the table below; empty = article.default_format
+  notes: "Duplicate payment processed twice because the message lock expired during a slow handler."
+  auto: true                        # set by the planner: notes are an idea, not a real incident
   status: pending                   # pending | done | skipped
 ```
 
-The `notes` field becomes the article's opening production incident, and a real story from your own work makes the strongest hook. When fewer than two topics are pending, Claude plans `topics.plan_batch` new ones and skips anything listed under `topics.already_published`. To write a topic again, set its status back to `pending`.
+| Format | Best for | Length | Visuals |
+|---|---|---|---|
+| `deep-dive` | One concept or feature, explained with a clear stance | 1,400–2,600 words | 4–7 |
+| `bug-hunt` | A failure traced from symptom to root cause to prevention | 1,300–2,400 | 3–6 |
+| `build-log` | How something was designed and built, with the trade-offs | 1,500–2,800 | 4–7 |
+| `versus` | A decision guide between options developers confuse | 1,200–2,200 | 4–6 |
+| `interview` | 6–12 interview questions with model answers | 2,200–4,200 | 5–9 |
+| `news` | What a new release changes for developers (needs research) | 900–1,800 | 3–5 |
+
+**Notes are how your experience gets in.** When you write `notes` yourself, without `auto: true`, the writer treats them as something that really happened and builds the opening on those details. A real incident from your own work is the strongest hook you can give it, and it is what Medium's curators look for. Planner ideas carry `auto: true`, and the writer tells them as a recognisable scenario, never as your past.
+
+When fewer than two topics are pending, Claude plans `topics.plan_batch` new ones, each with a format and an angle. It skips the queue, `topics.already_published` and the titles live on your Medium feed. To write a topic again, set its status back to `pending`. To add a series teaser, give the topic a `series:` name.
 
 ## 9. Configuration reference
 
@@ -187,15 +200,17 @@ The `notes` field becomes the article's opening production incident, and a real 
 | `writer.claude_code_model` | `opus` | `opus` or `sonnet`. Sonnet uses less of your plan's limit. |
 | `writer.claude_code_fallback` | `sonnet` | Used when the main model is unavailable (ignored if it is the same model) |
 | `writer.max_tokens` / `timeout_sec` | `32000` / `1500` | Output cap and per-call timeout |
+| `writer.research` | `true` | Writer, reviewer and planner verify facts with WebSearch/WebFetch and link official docs. Slower and uses more of your plan. Required for the `news` format. |
 | `writer.review` / `auto_fix` | `true` / `true` | Run the review pass, and apply its fixes |
-| `article.questions` | `12` | Questions per article |
-| `article.cta` | (text) | Closing call to action, reproduced word for word |
+| `article.default_format` | `deep-dive` | Format for topics that do not set one |
+| `article.cta` | `{default, interview}` | Closing call to action per format, reproduced word for word |
 | `article.lead_tags` | (map) | Track → first Medium tag |
 | `hosting.repo` / `branch` / `folder` | — / `main` / `posts` | Where images and pages are committed |
 | `hosting.url_style` | `raw` | `raw` (raw.githubusercontent.com) or `jsdelivr` |
 | `publish.mode` | `local` | See [section 6](#6-how-articles-reach-medium) |
 | `publish.auto_open` | `true` | On a PC, open the paste page and a new Medium story when done |
 | `topics.auto_plan` / `plan_batch` | `true` / `5` | Refill the queue automatically |
+| `topics.medium_feed` | your RSS feed | Live Medium titles are added to the do-not-repeat list |
 | `topics.already_published` | (list) | Series the planner must not repeat |
 
 ## 10. Customising
@@ -212,7 +227,7 @@ After any change, run `python test_autopilot.py` and a dry run.
 
 ## 11. Cost
 
-- **Writer on a subscription (default):** no extra charge. Each article uses three Claude calls (about 30k input and 45k output tokens) from your plan's limits.
+- **Writer on a subscription (default):** no extra charge. Each article uses three Claude calls from your plan's limits, more when research mode looks things up. If you hit limits, set `writer.research: false` or `claude_code_model: sonnet`.
 - **Writer on the API:** roughly $0.50 to $1.50 per article with Opus, billed on console.anthropic.com.
 - **GitHub:** Actions, Pages and storage are free for public repositories.
 
@@ -228,5 +243,6 @@ After any change, run `python test_autopilot.py` and a dry run.
 | No Telegram message from Actions | The two Telegram values are under Variables instead of Secrets. |
 | Broken images in Medium | The repository is private, or the images were still propagating. Check that an image URL opens in a browser. |
 | The same topic was written twice | A local run's queue change was not pushed. Commit and push `topics/queue.yaml`. |
-| `Expected 12 questions, found 11` in `review.md` | The writer slipped. Fix it in the Medium draft or rerun with `run topic`. |
+| Format warnings in `review.md` (word count, visuals, questions) | The writer drifted from the format. Fix it in the Medium draft, or rerun with `run topic ... --format ...`. |
+| `Format 'news' needs writer.research: true` | Turn research on in `config.yaml`, or pick another format. |
 | `Asset block skipped (invalid JSON)` | Rare. The JSON was repaired once automatically and the block was still broken. That one visual is missing. |

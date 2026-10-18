@@ -33,6 +33,7 @@ class Article:
     slug: str
     tags: list[str]
     body: str                      # markdown with {{ASSET:n}} placeholders
+    format: str = ""               # front matter `format:` (deep-dive, bug-hunt, interview, ...)
     assets: list[Asset] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -71,6 +72,7 @@ def parse(md: str, json_fixer=None) -> Article:
         slug=_slugify(str(fm.get("slug") or title)),
         tags=[str(t) for t in tags],
         body="",
+        format=str(fm.get("format") or "").strip(),
         warnings=warnings,
     )
 
@@ -148,38 +150,54 @@ def render_all(art: Article, out_dir: Path) -> None:
     art.assets = [a for a in art.assets if a.local_path]
 
 
+def word_count(art: Article) -> int:
+    return len(re.sub(r"\{\{ASSET:\d+\}\}", " ", art.body).split())
+
+
 def validate(art: Article, cfg) -> list[str]:
-    """Format checks against the proven article template."""
+    """Checks every article must pass, plus the rules of its own format."""
+    from .prompts import FORMATS
+    from .writer import cta_for
+
     w = []
     body = art.body
-    n_q = len(re.findall(r"^##\s+Q\d+\.", body, re.M))
-    want_q = int(cfg.get("article.questions", 12))
-    if n_q != want_q:
-        w.append(f"Expected {want_q} questions, found {n_q}.")
-    norm = body.replace("\u2019", "'")
-    for part, pat in [("What they're testing", r"\*\*What they'?re (actually )?testing"),
-                      ("The analogy", r"\*\*The analogy"),
-                      ("Say this in the interview", r"\*\*Say this"),
-                      ("The trap / follow-up", r"\*\*The trap"),
-                      ("Memory hook", r"\*\*Memory hook")]:
-        c = len(re.findall(pat, norm))
-        if c < n_q:
-            w.append(f"'{part}' appears {c}x for {n_q} questions.")
-    cta = cfg.get("article.cta", "")
+    fmt = art.format
+    if fmt not in FORMATS:
+        w.append(f"Unknown or missing `format:` in front matter ({fmt or 'none'}); checked as deep-dive.")
+        fmt = "deep-dive"
+    spec = FORMATS[fmt]
+
+    words, (lo, hi) = word_count(art), spec["words"]
+    if words < lo * 0.8:
+        w.append(f"Only {words} words for the {fmt} format (target {lo}-{hi}). Check that nothing is missing.")
+    elif words > hi * 1.25:
+        w.append(f"{words} words for the {fmt} format (target {lo}-{hi}). Look for padding to cut.")
+    n_vis, (vlo, vhi) = len(art.assets), spec["visuals"]
+    if not vlo <= n_vis <= vhi:
+        w.append(f"{n_vis} visuals (target {vlo}-{vhi} for the {fmt} format).")
+    if [a.spec.get("type") for a in art.assets][:1] != ["cover"]:
+        w.append("First asset is not the cover.")
+    cta = cta_for(cfg, fmt)
     if cta and cta not in body:
         w.append("Fixed CTA is missing or was reworded.")
     if len(art.tags) != 5:
         w.append(f"Expected exactly 5 tags, got {len(art.tags)}: {art.tags}")
-    kinds = [a.spec.get("type") for a in art.assets]
-    if kinds[:1] != ["cover"]:
-        w.append("First asset is not the cover.")
-    for k, lo, hi in [("table", 3, 4), ("diagram", 2, 3), ("gif", 2, 2), ("revision", 1, 1)]:
-        c = kinds.count(k)
-        if not lo <= c <= hi:
-            w.append(f"{k}: {c} (target {lo}-{hi}).")
     if re.search(r"^\|.*\|\s*$", body, re.M):
         w.append("A markdown table slipped in — Medium will not render it.")
-    for h in ["## 5-Question Self-Check", "## Coming next"]:
-        if h not in body:
-            w.append(f"Missing section: {h}")
+
+    if fmt == "interview":
+        n_q = len(re.findall(r"^##\s+Q\d+\.", body, re.M))
+        if not 6 <= n_q <= 12:
+            w.append(f"{n_q} questions (an interview set has 6-12).")
+        norm = body.replace("\u2019", "'")
+        for part, pat in [("What they're testing", r"\*\*What they'?re (actually )?testing"),
+                          ("The analogy", r"\*\*The analogy"),
+                          ("Say this in the interview", r"\*\*Say this"),
+                          ("The trap / follow-up", r"\*\*The trap"),
+                          ("Memory hook", r"\*\*Memory hook")]:
+            c = len(re.findall(pat, norm))
+            if c < n_q:
+                w.append(f"'{part}' appears {c}x for {n_q} questions.")
+        if not re.search(r"^##\s+.*Self-Check", body, re.M):
+            w.append("Missing section: ## Self-Check")
     return w

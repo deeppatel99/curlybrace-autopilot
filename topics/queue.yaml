@@ -1,6 +1,8 @@
 # Topic queue — the agent takes the first item with status: pending.
 # status: pending | done | skipped. Add new topics at the bottom.
 # track decides the lead tag: csharp, aspnetcore, design, sql, azure, devops, ai, system-design
+# format: deep-dive | bug-hunt | build-log | versus | interview | news (empty = config default)
+# notes: your REAL experience becomes the opening story. auto: true = planner idea, never told as real
 
 - topic: 'Dependency Injection lifetimes: the captive dependency bug that leaks DbContext across requests'
   track: aspnetcore
@@ -16,8 +18,9 @@
   status: done
   done_on: '2026-10-18'
   slug: ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries
-- topic: 'Azure Service Bus in production: retries, dead-letter queues, sessions and idempotent consumers'
+- topic: 'The payment that was charged twice: lock expiry, retries and idempotent consumers in Azure Service Bus'
   track: azure
-  kicker: Interview Ready · Deep Dive
-  notes: Duplicate payment processed twice because of lock expiry during a slow handler.
+  format: bug-hunt
+  notes: Duplicate payment processed twice because the message lock expired during a slow handler.
+  auto: true
   status: pending

@@ -2,6 +2,7 @@
 title: "Middleware Order in ASP.NET Core: The Bug That Returned 401 to Everyone"
 subtitle: A short demo article showing the format the autopilot produces — run it with `python run.py file samples/sample-article.md --dry-run`.
 slug: middleware-order-demo
+format: interview
 tags: [Aspnetcore, Dotnet, Csharp, Programming, Interview]
 ---
 

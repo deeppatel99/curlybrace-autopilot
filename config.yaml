@@ -11,14 +11,19 @@ writer:
   model: claude-opus-5-5          # model for backend api
   max_tokens: 32000
   timeout_sec: 1500
-  review: true                    # second pass: strict technical + format review
+  research: true                  # writer, reviewer and planner verify facts on the web (WebSearch/WebFetch)
+                                  # and link official docs. Slower and uses more of your plan; false = offline
+  review: true                    # second pass: accuracy + reader value + format review
   auto_fix: true                  # third pass: apply the review fixes automatically
   price_per_mtok: {input: 4, output: 20}   # only used for the cost line in the log
 
 article:
-  questions: 12
-  default_kicker: "Interview Ready"
-  cta: "Which question came up in your interview that isn't here? Drop it in the responses — I'll add it to the next revision with credit."
+  default_format: deep-dive       # used when a topic has no format:
+                                  # deep-dive | bug-hunt | build-log | versus | interview | news
+                                  # (shapes, lengths and visual counts live in autopilot/prompts.py → FORMATS)
+  cta:                            # closing line, reproduced word for word; per format, with a default
+    default: "If this saved you a debugging session, follow The Curly Brace for one practical .NET and Azure deep dive every week, and tell me in the responses what you want me to dig into next."
+    interview: "Which question came up in your interview that isn't here? Drop it in the responses — I'll add it to the next revision with credit."
   lead_tags:                      # track -> first Medium tag
     csharp: Csharp
     aspnetcore: Aspnetcore
@@ -47,6 +52,7 @@ publish:
 topics:
   auto_plan: true                 # when < 2 topics are pending, Claude plans 5 new ones automatically
   plan_batch: 5
+  medium_feed: https://medium.com/feed/@thecurlybrace   # recent titles are added to the do-not-repeat list
   already_published:              # so the planner never repeats your existing series
     - "Interview Ready Parts 1-6: C# fundamentals (types, async/await, LINQ, generics, memory, collections)"
     - "Interview Ready Parts 7-11: ASP.NET Core (middleware, DI, configuration, auth, minimal APIs)"

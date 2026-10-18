@@ -3,8 +3,9 @@ The Curly Brace — Medium autopilot.
 
   python run.py check                      verify Claude login, GitHub repo and Medium token
   python run.py next                       write + publish the next topic in topics/queue.yaml
-  python run.py topic "EF Core N+1" --track sql
-  python run.py add "Topic" --track azure  add a topic to the queue
+  python run.py topic "EF Core N+1" --track sql --format deep-dive
+  python run.py add "Topic" --track azure --format bug-hunt   add a topic to the queue
+  formats: deep-dive | bug-hunt | build-log | versus | interview | news
   python run.py file samples/sample-article.md   render + publish an article you already have
 
 Common flags:
@@ -22,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from autopilot import config, pipeline  # noqa: E402
 from autopilot import queue as q  # noqa: E402
+from autopilot.prompts import FORMATS  # noqa: E402
 
 
 def cmd_check(cfg) -> None:
@@ -110,9 +112,11 @@ def main() -> None:
 
     sub.add_parser("check")
     common(sub.add_parser("next"))
+    formats = list(FORMATS)
     t = sub.add_parser("topic")
     t.add_argument("topic")
     t.add_argument("--track", default="")
+    t.add_argument("--format", choices=formats, default=None)
     t.add_argument("--kicker", default=None)
     t.add_argument("--notes", default=None)
     t.add_argument("--next", default=None, help="next topic for the teaser")
@@ -120,6 +124,7 @@ def main() -> None:
     a = sub.add_parser("add")
     a.add_argument("topic")
     a.add_argument("--track", default="")
+    a.add_argument("--format", choices=formats, default=None)
     a.add_argument("--kicker", default=None)
     a.add_argument("--notes", default=None)
     f = sub.add_parser("file")
@@ -133,8 +138,9 @@ def main() -> None:
         return cmd_check(cfg)
     if args.cmd == "add":
         items = q.load(cfg.queue_file)
-        items.append({k: v for k, v in {"topic": args.topic, "track": args.track, "kicker": args.kicker,
-                                        "notes": args.notes, "status": "pending"}.items() if v})
+        items.append({k: v for k, v in {"topic": args.topic, "track": args.track, "format": args.format,
+                                        "kicker": args.kicker, "notes": args.notes,
+                                        "status": "pending"}.items() if v})
         q.save(cfg.queue_file, items)
         print(f"Added. {sum(1 for i in items if i.get('status') == 'pending')} pending topics.")
         return
@@ -142,8 +148,8 @@ def main() -> None:
     if args.cmd == "next":
         pipeline.run(cfg, from_queue=True, **kw)
     elif args.cmd == "topic":
-        item = {"topic": args.topic, "track": args.track, "kicker": args.kicker, "notes": args.notes,
-                "next": args.next}
+        item = {"topic": args.topic, "track": args.track, "format": args.format, "kicker": args.kicker,
+                "notes": args.notes, "next": args.next}
         pipeline.run(cfg, item=item, **kw)
     elif args.cmd == "file":
         pipeline.run(cfg, from_file=Path(args.path), **kw)
