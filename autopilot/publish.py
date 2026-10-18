@@ -74,7 +74,9 @@ pre{{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:1
 code{{font-family:Menlo,Consolas,monospace;font-size:.88em}}
 blockquote{{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}}
 hr{{border:0;text-align:center;margin:36px 0}}hr:after{{content:"...";letter-spacing:.6em;color:#999}}
-.banner{{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px}}
+.banner{{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}}
+.banner button{{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}}
+.banner a{{color:#1a1a1a}}
 </style></head><body>
 {banner}
 <article>
@@ -89,6 +91,33 @@ def to_html(art, use_urls: bool, banner: str = "", robots: str = "noindex,nofoll
     body = for_medium_paste(md_lib.markdown(body_md, extensions=["fenced_code", "sane_lists"]))
     return PAGE.format(title=html.escape(art.title), subtitle=html.escape(art.subtitle),
                        body=body, banner=banner, robots=robots)
+
+
+# Copies exactly what a manual select-all of <article> copies (title, text, hosted images/GIFs, code),
+# minus this banner. Async Clipboard API is only the fallback for browsers that refuse execCommand.
+COPY_BANNER = """<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>"""
 
 
 def for_medium_paste(body: str) -> str:
@@ -123,9 +152,6 @@ def write_local_files(art, out: Path, hosted: bool) -> dict:
     if hosted:
         (out / "article.hosted.md").write_text(art.to_markdown(use_urls=True), encoding="utf-8")
         (out / "paste.html").write_text(
-            to_html(art, use_urls=True, banner='<div class="banner"><b>Paste-ready.</b> Click inside the '
-                    'article, press Ctrl+A then Ctrl+C, and paste into a new Medium story. Images come '
-                    'along because they are hosted publicly. Delete this yellow box after pasting.</div>'),
-            encoding="utf-8")
+            to_html(art, use_urls=True, banner=COPY_BANNER), encoding="utf-8")
         files["paste"] = out / "paste.html"
     return files

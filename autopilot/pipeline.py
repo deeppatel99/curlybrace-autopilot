@@ -21,6 +21,7 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
     mode = mode or cfg.get("publish.mode", "api")
     writer = None
     review_md = "_Review skipped._"
+    fixed = False
     next_item = None
 
     # 1. Get the markdown -------------------------------------------------
@@ -52,6 +53,7 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
             if "NEEDS FIXES" in review_md.upper()[:200] and cfg.get("writer.auto_fix", True):
                 log("Applying review fixes...")
                 raw_md = writer.fix(raw_md, review_md)
+                fixed = True
 
     # 2. Parse + render visuals ------------------------------------------
     art = art_mod.parse(raw_md, json_fixer=writer.fix_json if writer else None)
@@ -143,8 +145,18 @@ def run(cfg, item: dict | None = None, from_file: Path | None = None, mode: str 
                                                      "import_url": result.get("import_url"),
                                                      "slug": art.slug})
 
-    notify(cfg, f"Curly Brace autopilot: \"{art.title}\" is ready.\n" + "\n".join(f"- {s}" for s in next_steps)
-           + (f"\n- {len(warnings)} format warning(s) — see review.md" if warnings else ""))
+    msg = [f"✅ Ready to publish: \"{art.title}\"", ""] + [f"- {s}" for s in next_steps]
+    if "[severity:" in review_md or "VERDICT" in review_md:
+        issues = review_md.count("[severity:")
+        facts = review_md.split("Fact-check notes", 1)[1].count("\n- ") if "Fact-check notes" in review_md else 0
+        msg.append(f"- AI review: {issues} issue(s) found" + (", auto-fixed" if fixed else "")
+                   + f"; {facts} fact-check(s) for you to confirm")
+    if hosted:
+        msg.append(f"- Review notes: https://github.com/{host.repo}/blob/{host.branch}/"
+                   f"{host.remote_path(art.slug, 'review.md')}")
+    if warnings:
+        msg.append(f"- {len(warnings)} format warning(s) — see review notes")
+    notify(cfg, "\n".join(msg))
 
     log("Done.")
     print("\n" + "\n".join(f"  -> {s}" for s in next_steps))

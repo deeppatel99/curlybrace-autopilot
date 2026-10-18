@@ -77,6 +77,21 @@ def cmd_check(cfg) -> None:
         print(f"  Medium token      : not set" + (" — REQUIRED for mode 'api'" if mode == "api" else " (fine for mode '" + mode + "')"))
         ok &= mode != "api"
     print(f"  Publish mode      : {mode} / status: {cfg.get('publish.status', 'draft')}")
+    bot, chat = cfg.secret("TELEGRAM_BOT_TOKEN"), cfg.secret("TELEGRAM_CHAT_ID")
+    if bot:
+        import requests
+        if not chat:
+            # find the chat id from the message you sent your bot
+            ups = requests.get(f"https://api.telegram.org/bot{bot}/getUpdates", timeout=20).json().get("result", [])
+            ids = {u["message"]["chat"]["id"] for u in ups if "message" in u}
+            print("  Telegram          : " + (f"put TELEGRAM_CHAT_ID={ids.pop()} in .env" if ids else
+                                            "send any message to your bot first, then run check again"))
+        else:
+            r = requests.post(f"https://api.telegram.org/bot{bot}/sendMessage",
+                              json={"chat_id": chat, "text": "✅ Curly Brace autopilot: Telegram works."}, timeout=20)
+            print(f"  Telegram          : {'ok — test message sent' if r.ok else 'FAILED — ' + r.text[:150]}")
+    else:
+        print("  Telegram          : not set (optional)")
     items = q.load(cfg.queue_file)
     pend = [i for i in items if i.get("status", "pending") == "pending"]
     print(f"  Topic queue       : {len(pend)} pending of {len(items)}")
