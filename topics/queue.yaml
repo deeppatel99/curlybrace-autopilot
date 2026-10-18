@@ -13,7 +13,9 @@
   track: sql
   kicker: Interview Ready · Deep Dive
   notes: Open with an API that went from 80 ms to 9 s after a navigation property was added.
-  status: pending
+  status: done
+  done_on: '2026-10-18'
+  slug: ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries
 - topic: 'Azure Service Bus in production: retries, dead-letter queues, sessions and idempotent consumers'
   track: azure
   kicker: Interview Ready · Deep Dive
