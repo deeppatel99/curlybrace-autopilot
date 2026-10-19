@@ -3,6 +3,8 @@ name: Curly Brace autopilot
 on:
   schedule:
     - cron: "30 3 * * 1"        # every Monday 09:00 IST (03:30 UTC)
+    - cron: "47 5 * * 1"        # backups: GitHub sometimes drops scheduled runs under load;
+    - cron: "47 8 * * 1"        # these do nothing if today's article is already done
   workflow_dispatch:             # "Run workflow" button in the Actions tab
     inputs:
       topic:
@@ -35,6 +37,8 @@ jobs:
     timeout-minutes: 60              # research mode verifies facts on the web: three longer Claude calls
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}  # latest main, so a backup run sees the queue an earlier run just saved
 
       - uses: actions/setup-python@v5
         with:
@@ -59,6 +63,9 @@ jobs:
           IN_MODE: ${{ inputs.mode }}
           IN_FORMAT: ${{ inputs.format }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = schedule ] && grep -q "done_on: '$(date -u +%F)'" topics/queue.yaml; then
+            echo "Today's article is already done - backup run skipped."; exit 0
+          fi
           MODE_FLAG=""
           if [ -n "$IN_MODE" ]; then MODE_FLAG="--mode $IN_MODE"; fi
           FORMAT_FLAG=""

@@ -107,7 +107,7 @@ The schedule is the `cron` line in [`.github/workflows/autopilot.yml`](../.githu
 | Every day 07:00 IST | `30 1 * * *` |
 | Saturday 22:30 IST | `0 17 * * 6` |
 
-GitHub may start scheduled runs 10 to 30 minutes late. The Telegram update and the run summary show the next scheduled date, worked out from this line.
+GitHub may start scheduled runs late, and under heavy load it sometimes skips one altogether. That is why two backup lines (`47 5` and `47 8`, about 11:17 and 14:17 IST) follow the main one. A backup exits straight away if a topic in the queue already has today's `done_on` date, so you never get two articles. If you change the days, change them on the backup lines too. The Telegram update and the run summary show the next scheduled date, worked out from the first `cron` line.
 
 ### What a run does
 
