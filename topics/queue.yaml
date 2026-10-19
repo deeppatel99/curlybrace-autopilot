@@ -18,18 +18,67 @@
   status: done
   done_on: '2026-10-18'
   slug: ef-core-performance-interview-n-plus-one-tracking-split-compiled-queries
-- topic: 'Your Azure Functions lose support on November 10: moving from in-process to the isolated worker without breaking anything'
+- topic: 'Your Azure Functions lose support on November 10: moving from in-process to the isolated worker
+    without breaking anything'
   track: azure
   format: deep-dive
-  notes: >-
-    Official: in-process support ends 10 Nov 2026 (Azure update + Microsoft Learn migration guide); apps keep
-    running but get no security or feature updates. Open with what that actually means for a running app,
-    then the migration path and the breaking differences that bite (Program.cs/host builder, DI, middleware,
-    HttpRequestData vs ASP.NET Core integration, bindings/extension packages, logging), target .NET 10 LTS,
-    and end with a pre-flight checklist. Verify every detail against learn.microsoft.com.
+  notes: 'Official: in-process support ends 10 Nov 2026 (Azure update + Microsoft Learn migration guide);
+    apps keep running but get no security or feature updates. Open with what that actually means for a
+    running app, then the migration path and the breaking differences that bite (Program.cs/host builder,
+    DI, middleware, HttpRequestData vs ASP.NET Core integration, bindings/extension packages, logging),
+    target .NET 10 LTS, and end with a pre-flight checklist. Verify every detail against learn.microsoft.com.'
   auto: true
-  status: pending
-- topic: 'The duplicate payment and Service Bus reliability'
+  status: done
+  done_on: '2026-10-19'
+  slug: azure-functions-in-process-to-isolated-worker-migration
+- topic: The duplicate payment and Service Bus reliability
   track: azure
-  notes: Already covered in a published article (user, 2026-10-18). Kept here so the planner never repeats it.
+  notes: Already covered in a published article (user, 2026-10-18). Kept here so the planner never repeats
+    it.
   status: skipped
+- topic: .NET 11 RC2 Has a Go-Live License. Should You Ship It Before .NET Conf on November 10?
+  track: devops
+  format: news
+  notes: It opens with a team that has a TFM bump PR sitting open since RC2 shipped on October 13 and
+    has to decide whether to merge it now; the stance is that RC2 is a safe production bet for well-tested
+    stateless services, but only after a specific checklist (SDK pinning in global.json, container base
+    images, analyzer warnings, NuGet compatibility) that most teams skip.
+  status: pending
+  auto: true
+- topic: The User Closed the Tab. Our API Kept Working for 40 Seconds Anyway.
+  track: aspnetcore
+  format: bug-hunt
+  notes: It opens with connection pool exhaustion during a traffic spike, traced back to abandoned report
+    requests that kept running because nobody passed HttpContext.RequestAborted down to EF Core and HttpClient;
+    the stance is that a CancellationToken parameter you never pass on is worse than having none at all.
+  status: pending
+  auto: true
+- topic: Two Users Edited the Same Order. The Second Save Silently Erased the First. rowversion or UPDLOCK?
+  track: sql
+  format: versus
+  notes: It opens with a support agent's address correction quietly overwritten by a warehouse update
+    a few seconds later, then pits optimistic concurrency (EF Core rowversion and DbUpdateConcurrencyException)
+    against pessimistic locking (UPDLOCK/HOLDLOCK), arguing that optimistic should be the default and
+    that locks only belong on short, high-contention hot rows such as inventory counters.
+  status: pending
+  auto: true
+- topic: Our Pipeline Had a Client Secret That Expired Every 12 Months. Workload Identity Federation Deleted
+    It.
+  track: azure
+  format: build-log
+  notes: It opens with every deployment failing on the morning a service principal secret quietly expired,
+    then walks through moving Azure DevOps and GitHub Actions service connections to OIDC workload identity
+    federation, with the trust config, the scoped role assignments and the gotchas; the stance is that
+    a long-lived secret in a CI pipeline is now indefensible.
+  status: pending
+  auto: true
+- topic: We Passed a CustomerId Where an OrderId Belonged. The Compiler Shrugged. Strongly Typed IDs Wouldn't
+    Have.
+  track: design
+  format: deep-dive
+  notes: It opens with a refund issued against the wrong order because two Guid parameters were swapped
+    in a method call, then builds strongly typed IDs with readonly record structs, EF Core value converters,
+    JSON and route binding; the stance is that they pay for themselves in any domain with more than three
+    aggregates, despite the 'ceremony' objection.
+  status: pending
+  auto: true

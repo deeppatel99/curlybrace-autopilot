@@ -1,6 +1,11 @@
 # Articles already live on Medium (newest first). Kept current from the RSS feed.
 # The planner never repeats these; the writer links related ones.
 
+- date: '2026-10-19'
+  title: 'DI Lifetimes in ASP.NET Core: The Captive Dependency That Leaked Our DbContext'
+  subtitle: Twelve interview questions on transient, scoped and singleton lifetimes, and why one wrong registration shares
+    a DbContext across every…
+  url: https://medium.com/@thecurlybrace/di-lifetimes-in-asp-net-core-the-captive-dependency-that-leaked-our-dbcontext-a9c56ef3a42e
 - date: '2026-10-17'
   title: Your Abstract Base Class Is Lying to the Compiler
   subtitle: C# 15’s closed modifier turns "every case is handled" from a hope into a guarantee — and for most domain models,
