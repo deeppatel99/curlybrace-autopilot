@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your Azure Functions Lose Support on November 10, 2026. Migrate Without Breaking Them.</title>
+<meta name="description" content="In-process apps keep running after the deadline but stop getting fixes. Here is the move to the isolated worker on .NET 10, and the breaking changes most migrations miss.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}
+.banner button{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}
+.banner a{color:#1a1a1a}
+</style></head><body>
+<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>
+<article>
+<h1>Your Azure Functions Lose Support on November 10, 2026. Migrate Without Breaking Them.</h1>
+<h2 class="sub">In-process apps keep running after the deadline but stop getting fixes. Here is the move to the isolated worker on .NET 10, and the breaking changes most migrations miss.</h2>
+<p><img alt="Your Azure Functions Lose Support on November 10, 2026. Migrate Without Breaking Them." src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/azure-functions-in-process-to-isolated-worker-migration/images/01-cover.png" /></p>
+<p>It's November 11. Nothing is on fire.</p>
+<p>Your order-processing function app ran overnight like it always does. The dashboards are green. Then someone opens a portal notification and reads it twice: <em>in-process model, end of support</em>.</p>
+<p>The app still works, and that is the trap. Nothing changes on the morning of the deadline. What changes is that nobody is patching the host your code runs inside anymore.</p>
+<p>So what actually happens on November 10, and how do you get off the in-process model without breaking a running system?</p>
+<h2>What "end of support" means for an app that's already running</h2>
+<p>According to the <a href="https://aka.ms/azure-functions-retirements/in-process-model">Azure retirement notice</a>, in-process apps keep running after November 10, 2026, but they stop receiving security and feature updates. Nothing is switched off. You're on your own from then on.</p>
+<p>There's a second deadline on the same day. The in-process model on Functions 4.x supports only .NET 8, and .NET 8 itself leaves support on November 10, 2026. So after that date, an in-process app runs on an unpatched hosting model <em>and</em> an unpatched runtime. .NET 9 also leaves support that day, so isolated on .NET 8 or 9 doesn't get you past the deadline. Target .NET 10 (LTS, supported to November 2028).</p>
+<p>There's no "upgrade in place" option either. In-process will never support .NET 10. The <a href="https://learn.microsoft.com/en-us/azure/azure-functions/dotnet-isolated-process-guide">supported versions table</a> lists .NET 10 only under the isolated worker model.</p>
+<h2>The lodger and the flat next door</h2>
+<p>In the in-process model, your function DLL is a lodger in the Functions host's house. It eats what the host cooks: the host's version of <code>Microsoft.Extensions.*</code>, its Newtonsoft.Json, its logging pipeline. That's why you couldn't upgrade some packages. The host had already loaded them.</p>
+<p>In the isolated model, your app moves into its own flat next door. It's a plain .NET console app with its own <code>Main</code>, its own DI container and its own package versions. The host still owns the triggers and calls your worker over gRPC, a bit like an intercom between the flats.</p>
+<p><img alt="In-process vs isolated worker" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/azure-functions-in-process-to-isolated-worker-migration/images/02-diagram-compare-1.png" /></p>
+<p>Nearly every breaking change below comes from that one fact. When you live in your own flat, you set up your own utilities.</p>
+<h2>The project file is now a console app</h2>
+<p>Start with the <code>.csproj</code>. The current <a href="https://learn.microsoft.com/en-us/azure/azure-functions/migrate-dotnet-to-isolated-model">migration guide</a> switches the project SDK to <code>Azure.Functions.Sdk</code>, targets <code>net10.0</code>, and replaces <code>Microsoft.NET.Sdk.Functions</code> with the worker packages:</p>
+<pre>&lt;Project Sdk=&quot;Azure.Functions.Sdk/1.0.0&quot;&gt;<br>  &lt;PropertyGroup&gt;<br>    &lt;TargetFramework&gt;net10.0&lt;/TargetFramework&gt;<br>    &lt;ImplicitUsings&gt;enable&lt;/ImplicitUsings&gt;<br>    &lt;Nullable&gt;enable&lt;/Nullable&gt;<br>  &lt;/PropertyGroup&gt;<br>  &lt;ItemGroup&gt;<br>    &lt;FrameworkReference Include=&quot;Microsoft.AspNetCore.App&quot; /&gt;<br>    &lt;PackageReference Include=&quot;Microsoft.Azure.Functions.Worker&quot; Version=&quot;2.52.0&quot; /&gt;<br>    &lt;PackageReference Include=&quot;Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore&quot; Version=&quot;2.1.0&quot; /&gt;<br>    &lt;PackageReference Include=&quot;Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues&quot; Version=&quot;5.5.0&quot; /&gt;<br>    &lt;PackageReference Include=&quot;Microsoft.ApplicationInsights.WorkerService&quot; Version=&quot;2.22.0&quot; /&gt;<br>    &lt;PackageReference Include=&quot;Microsoft.Azure.Functions.Worker.ApplicationInsights&quot; Version=&quot;1.2.0&quot; /&gt;<br>  &lt;/ItemGroup&gt;<br>  &lt;ItemGroup&gt;<br>    &lt;Using Include=&quot;System.Threading.ExecutionContext&quot; Alias=&quot;ExecutionContext&quot; /&gt;<br>  &lt;/ItemGroup&gt;<br>&lt;/Project&gt;</pre>
+<p>The worker and Application Insights versions, and the <code>ExecutionContext</code> using alias, are the ones the guide shows. Treat every version number as a floor and take the latest stable from NuGet; the HTTP AspNetCore extension, for example, is already at 2.1.1. The Queues line stands in for whichever trigger extensions you use.</p>
+<p>The rule the guide puts in bold: <strong>no <code>Microsoft.Azure.WebJobs.*</code> package and no <code>Microsoft.Azure.Functions.Extensions</code> may remain.</strong> Each WebJobs extension has an isolated twin (<code>...WebJobs.Extensions.ServiceBus</code> becomes <code>...Functions.Worker.Extensions.ServiceBus</code>, and so on). Watch for major-version jumps. The guide warns that the Service Bus extension changed its <code>host.json</code> structure between 4.x and 5.x.</p>
+<p>If you deploy to Linux on the old Consumption plan, stop and plan for this: .NET 10 can't run on Linux Consumption (.NET 9 was the last version there). Move to Flex Consumption, which means a new function app and no slot swap, or to Windows Consumption, Premium or Dedicated. If you pick Flex, read the no-slots caveat in the cutover section below before you plan the switch.</p>
+<h2>Startup.cs becomes Program.cs, and you finally get middleware</h2>
+<p>Your <code>FunctionsStartup</code> class goes away. Its <code>Configure</code> body moves into <code>Program.cs</code> mostly unchanged, because <code>builder.Services</code> is the same <code>IServiceCollection</code> you already know:</p>
+<pre>using System.Linq;<br>using Microsoft.Azure.Functions.Worker;<br>using Microsoft.Azure.Functions.Worker.Builder;<br>using Microsoft.Extensions.DependencyInjection;<br>using Microsoft.Extensions.Hosting;<br>using Microsoft.Extensions.Logging;<br>&nbsp;<br>var builder = FunctionsApplication.CreateBuilder(args);<br>&nbsp;<br>builder.ConfigureFunctionsWebApplication();<br>builder.UseMiddleware&lt;ErrorLoggingMiddleware&gt;();<br>&nbsp;<br>builder.Services<br>    .AddApplicationInsightsTelemetryWorkerService()<br>    .ConfigureFunctionsApplicationInsights();<br>&nbsp;<br>// Let Information-level logs through (explained below).<br>builder.Services.Configure&lt;LoggerFilterOptions&gt;(options =&gt;<br>{<br>    var aiDefault = options.Rules.FirstOrDefault(r =&gt; r.ProviderName ==<br>        &quot;Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider&quot;);<br>    if (aiDefault is not null) options.Rules.Remove(aiDefault);<br>});<br>&nbsp;<br>// Everything from FunctionsStartup.Configure moves here.<br>&nbsp;<br>builder.Build().Run();</pre>
+<p>The in-process model had no real middleware story. The isolated worker gives you a pipeline around every invocation, whatever the trigger:</p>
+<pre>using Microsoft.Azure.Functions.Worker;<br>using Microsoft.Azure.Functions.Worker.Middleware;<br>using Microsoft.Extensions.Logging;<br>&nbsp;<br>public sealed class ErrorLoggingMiddleware(ILogger&lt;ErrorLoggingMiddleware&gt; logger)<br>    : IFunctionsWorkerMiddleware<br>{<br>    public async Task Invoke(FunctionContext context, FunctionExecutionDelegate next)<br>    {<br>        try<br>        {<br>            await next(context);<br>        }<br>        catch (Exception ex)<br>        {<br>            logger.LogError(ex, &quot;Function {Name} failed&quot;, context.FunctionDefinition.Name);<br>            throw;<br>        }<br>    }<br>}</pre>
+<p>Look closely at the DI. With version 2.x of <code>Microsoft.Azure.Functions.Worker</code>, <strong>service provider scope validation is on by default in the Development environment</strong>, the same as ASP.NET Core. If your in-process app quietly injected a scoped service into a singleton, the migrated app will now fail on startup when you run it locally. That's a good thing. (I've written about why that bug matters in <a href="https://medium.com/@thecurlybrace/di-lifetimes-in-asp-net-core-the-captive-dependency-that-leaked-our-dbcontext-a9c56ef3a42e">The Captive Dependency That Leaked Our DbContext</a>.)</p>
+<h2>Function signatures: rename, inject, return</h2>
+<p>Most of it is mechanical. Output bindings change the most:</p>
+<p><img alt="In-process to isolated: what changes in your code" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/azure-functions-in-process-to-isolated-worker-migration/images/03-table-1.png" /></p>
+<p>Here's a typical HTTP function that also writes to a queue, after migration:</p>
+<pre>using Microsoft.AspNetCore.Http;<br>using Microsoft.AspNetCore.Mvc;<br>using Microsoft.Azure.Functions.Worker;<br>using Microsoft.Extensions.Logging;<br>&nbsp;<br>public class CreateOrder(ILogger&lt;CreateOrder&gt; logger)<br>{<br>    [Function(&quot;CreateOrder&quot;)]<br>    public async Task&lt;CreateOrderOutput&gt; Run(<br>        [HttpTrigger(AuthorizationLevel.Function, &quot;post&quot;)] HttpRequest req)<br>    {<br>        using var reader = new StreamReader(req.Body);<br>        string body = await reader.ReadToEndAsync();<br>&nbsp;<br>        logger.LogInformation(&quot;Order received ({Length} bytes)&quot;, body.Length);<br>&nbsp;<br>        return new CreateOrderOutput { Result = new AcceptedResult(), Message = body };<br>    }<br>}<br>&nbsp;<br>public class CreateOrderOutput<br>{<br>    [HttpResult]<br>    public IActionResult Result { get; set; } = default!;<br>&nbsp;<br>    [QueueOutput(&quot;orders&quot;)]<br>    public string? Message { get; set; }<br>}</pre>
+<p>There are two things to notice. First, <code>[HttpResult]</code> tells the worker which property is the HTTP response. Without it, your response and your queue message compete for the same return value. Second, the body read is <code>ReadToEndAsync</code>, and that's not a style choice.</p>
+<h2>HttpRequest, not HttpRequestData, with one sharp edge</h2>
+<p>The isolated worker offers two HTTP models. The built-in one uses <code>HttpRequestData</code>/<code>HttpResponseData</code>. With <code>HttpRequestData</code>, a chunked request with no <code>Content-Length</code> header gives you a null <code>Body</code> stream. The ASP.NET Core integration (<code>ConfigureFunctionsWebApplication</code>) is what the migration guide uses when it's supported, and it's the model that supports streaming. It gives you the <code>HttpRequest</code> and <code>IActionResult</code> you already use, which makes migrated code look almost the same as before.</p>
+<p>My position: if you're on .NET 10, use ASP.NET Core integration. <code>HttpRequestData</code> only makes sense for .NET Framework 4.8, where the integration isn't available.</p>
+<p>The sharp edge is that ASP.NET Core disallows synchronous I/O by default. A leftover <code>reader.ReadToEnd()</code> that worked fine in-process now throws <code>InvalidOperationException: Synchronous operations are disallowed</code>. Make it async. Don't reach for the <code>AllowSynchronousIO</code> switch unless a dependency gives you no choice. (It's disallowed for the same thread-pool reason I covered in <a href="https://medium.com/@thecurlybrace/one-innocent-line-result-froze-my-entire-api-i-was-blocking-async-without-knowing-it-8be867b6f4fd">One Innocent Line (.Result) Froze My Entire API</a>.)</p>
+<h2>The two silent breaks: your logs and your JSON</h2>
+<p>These two don't throw errors. They change behaviour quietly, and you find out from a customer.</p>
+<p><strong>Logging.</strong> In the isolated model, <code>host.json</code> controls only the host's logs. Your code's log levels are configured in the worker. On top of that, the Application Insights Worker Service SDK captures only Warning and above by default. Migrate, deploy, and your <code>LogInformation</code> breadcrumbs disappear from Application Insights. The filter-rule removal in the <code>Program.cs</code> above brings them back. Then set the levels you actually want in code or <code>appsettings.json</code>. Microsoft's isolated guide now leans towards OpenTelemetry with the Azure Monitor exporter. That's worth adopting, but in a separate change from the migration.</p>
+<p><strong>JSON.</strong> The in-process model used Newtonsoft.Json. The isolated worker defaults to System.Text.Json. As the migration guide warns, System.Text.Json <strong>ignores <code>[JsonProperty]</code> and <code>[JsonIgnore]</code> and binds the affected property to its default value without reporting an error</strong>. A queue message with <code>[JsonProperty("order_id")]</code> arrives with <code>OrderId</code> set to <code>0</code>. Search your solution for <code>Newtonsoft.Json</code> attributes before you deploy anything.</p>
+<h2>The cutover: two changes, one swap</h2>
+<p>In Azure, the migration is two changes: set <code>FUNCTIONS_WORKER_RUNTIME</code> to <code>dotnet-isolated</code>, and deploy the isolated build. Each one restarts the app. Between them, the runtime and the payload don't match, and the app logs <code>AZFD0013</code> errors.</p>
+<p>That's why you make both changes in a staging slot, not in production:</p>
+<p><img alt="Cutting over without an outage" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/azure-functions-in-process-to-isolated-worker-migration/images/04-gif-flow-1.gif" /></p>
+<p>Two caveats. Update your IaC and pipelines too, or the next Bicep deployment will set the runtime back to <code>dotnet</code>. And check that your plan supports slots before counting on them: Flex Consumption, for one, didn't at the time of writing. Flex's rolling updates don't help here: the runtime switch and the deploy are still two separate restarts. Without slots, schedule a short maintenance window and make the two changes back to back.</p>
+<h2>When not to rush it</h2>
+<p>Migrating twelve function apps in three weeks is how you cause the incident you were trying to avoid. Prioritise apps exposed to the internet, then everything else. An internal timer job can wait a sprint past the deadline. The risk there is real, but it's lower.</p>
+<p>Treat Durable Functions apps as a separate project. The isolated package is a different SDK with its own client and context types (<code>TaskOrchestrationContext</code> instead of <code>IDurableOrchestrationContext</code>). Every orchestrator API call changes. Read its migration guide before you start.</p>
+<p><img alt="Pre-flight Checklist" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/azure-functions-in-process-to-isolated-worker-migration/images/05-revision.png" /></p>
+<blockquote>Moving to the isolated worker is mostly mechanical. The danger is in what fails silently: logs you no longer see, and JSON properties that quietly become zero.</blockquote>
+<p>Do this today: run <code>grep -rnE "JsonProperty\(|JsonIgnore|ReadToEnd\(\)|FunctionsStartup|IAsyncCollector|IBinder|Microsoft\.Azure\.WebJobs" --include=*.cs --include=*.csproj src/</code> on your biggest function app and count the hits. That count is roughly how much work you have before November 10.</p>
+<p>Which of your function apps can't make November 10, and what's blocking it: Durable, Linux Consumption, or a WebJobs-only extension?</p>
+<p><strong>Follow The Curly Brace for more backend war stories — no theory, only scars.</strong></p>
+</article></body></html>
