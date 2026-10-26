@@ -43,8 +43,10 @@
     has to decide whether to merge it now; the stance is that RC2 is a safe production bet for well-tested
     stateless services, but only after a specific checklist (SDK pinning in global.json, container base
     images, analyzer warnings, NuGet compatibility) that most teams skip.
-  status: pending
+  status: done
   auto: true
+  done_on: '2026-10-26'
+  slug: dotnet-11-rc2-go-live-ship-before-november-10
 - topic: The User Closed the Tab. Our API Kept Working for 40 Seconds Anyway.
   track: aspnetcore
   format: bug-hunt

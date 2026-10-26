@@ -1,6 +1,15 @@
 # Articles already live on Medium (newest first). Kept current from the RSS feed.
 # The planner never repeats these; the writer links related ones.
 
+- date: '2026-10-21'
+  title: Your Azure Functions Lose Support on November 10, 2026. Migrate Without Breaking Them.
+  subtitle: In-process apps keep running after the deadline but stop getting fixes. Here is the move to the isolated worker
+    on .NET 10, and the…
+  url: https://medium.com/@thecurlybrace/your-azure-functions-lose-support-on-november-10-2026-migrate-without-breaking-them-c640ad96dc3a
+- date: '2026-10-20'
+  title: 'EF Core Performance Interview Questions: N+1, No-Tracking, Split and Compiled Queries'
+  subtitle: Twelve questions on N+1, tracking, split and compiled queries, with the answers interviewers expect.
+  url: https://medium.com/@thecurlybrace/ef-core-performance-interview-questions-n-1-no-tracking-split-and-compiled-queries-155cfe8f7956
 - date: '2026-10-19'
   title: 'DI Lifetimes in ASP.NET Core: The Captive Dependency That Leaked Our DbContext'
   subtitle: Twelve interview questions on transient, scoped and singleton lifetimes, and why one wrong registration shares
