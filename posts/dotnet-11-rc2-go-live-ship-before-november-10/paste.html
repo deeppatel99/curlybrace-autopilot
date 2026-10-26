@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>.NET 11 RC2 Has a Go-Live License. Should You Ship It Before November 10?</title>
+<meta name="description" content="Yes, for well-tested stateless services, but only after four pre-merge checks. And the build you actually ship isn&#x27;t RC2.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}
+.banner button{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}
+.banner a{color:#1a1a1a}
+</style></head><body>
+<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>
+<article>
+<h1>.NET 11 RC2 Has a Go-Live License. Should You Ship It Before November 10?</h1>
+<h2 class="sub">Yes, for well-tested stateless services, but only after four pre-merge checks. And the build you actually ship isn&#x27;t RC2.</h2>
+<p><img alt=".NET 11 RC2 Has a Go-Live License. Should You Ship It Before November 10?" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/dotnet-11-rc2-go-live-ship-before-november-10/images/01-cover.png" /></p>
+<p>It's Monday, October 26. Your team's PR is titled "Bump to net11.0".</p>
+<p>It was opened on October 13, the day RC2 shipped. Builds are green and two people have approved it. Nobody has clicked merge.</p>
+<p>Then someone posts in the channel: "RC3 dropped yesterday. Security fixes. Are we still on RC2?"</p>
+<p>So the question is whether you merge now or wait for GA on November 10. Here's how I'd decide.</p>
+<h2>What shipped, in two sentences</h2>
+<p><a href="https://devblogs.microsoft.com/dotnet/dotnet-11-rc-2/">.NET 11 RC2 shipped on October 13, 2026</a> with a go-live support license, so Microsoft supports it in production. On October 25 Microsoft shipped <a href="https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc3/11.0.0-rc.3.md">11.0.0-rc.3 as an out-of-band security release</a>, fixing a <a href="https://github.com/dotnet/announcements/issues/494">Brotli decoder out-of-bounds write</a> (CVE-2026-111497) and re-releasing two October 13 fixes that were incomplete.</p>
+<p>If you're going to ship .NET 11 before GA, ship RC3. The go-live license is the reason you're allowed to ship at all. The CVE list is why RC2 shouldn't be the build you choose.</p>
+<p>Read the fine print before you treat this as an emergency, though. According to <a href="https://github.com/dotnet/announcements/issues/494">the advisory</a>, ASP.NET Core request decompression and HttpClient Brotli decompression are both off by default, so many services aren't exposed at all. RC3 also doesn't fix everything on its own:</p>
+<ul>
+<li>Self-contained and NativeAOT apps have to be rebuilt and republished. A new base image doesn't patch a decoder that's already linked into your app.</li>
+<li>Blazor apps have to update their <code>Microsoft.AspNetCore.Components.WebAssembly.Server</code> and <code>DevServer</code> package references to get the CVE-2026-102870 fix, according to the RC3 notes.</li>
+<li>A fourth CVE, CVE-2026-114148 (Linux tarball file ownership), isn't fixed in an existing install by extracting a newer archive. The RC3 notes cover what to do on machines you've already set up.</li>
+</ul>
+<h2>What "go-live" actually buys you</h2>
+<p>Go-live doesn't mean "nearly GA, so roughly the same thing". On the <a href="https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core">official support policy page</a>, RC2's support starts on October 13, 2026 and ends on November 10, 2026. That's 28 days. That page doesn't list RC3 separately. RC3 is an out-of-band servicing release of the go-live RC, not a release with its own listed window.</p>
+<p>Think of go-live as a temporary occupancy permit. You can move in and the city backs you, but the permit expires on a fixed date whether or not the final inspection is done.</p>
+<p>So you get a supported runtime for four weeks. After that you have to move to the GA build. Merging now doesn't avoid an upgrade. It splits one upgrade into two: the real one now (new TFM, new SDK, new base image) and a version-string change in November.</p>
+<p>Here's the calendar the launch posts don't put side by side:</p>
+<p><img alt="The November 2026 support calendar" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/dotnet-11-rc2-go-live-ship-before-november-10/images/02-table-1.png" /></p>
+<p>Look at the last two rows. <a href="https://github.com/dotnet/core/blob/main/release-notes/11.0/README.md">The .NET 11 release notes</a> put its STS support at November 10, 2026 to November 9, 2028. .NET 10 LTS runs until November 14, 2028. The newer release ends five days earlier.</p>
+<p>That changes the argument. If you're on .NET 8 or 9 and racing the November 10 cutoff, go to .NET 10, on 10.0.14 or later. It's GA, it's patched every month, and it lasts just as long. The same Brotli CVE is fixed in 10.0.14, and in 8.0.33 and 9.0.22 for the time you have left on those, according to <a href="https://github.com/dotnet/announcements/issues/494">the advisory's fixed-version table</a>. (If Azure Functions on the in-process model are part of that race, I covered the <a href="https://medium.com/@thecurlybrace/your-azure-functions-lose-support-on-november-10-2026-migrate-without-breaking-them-c640ad96dc3a">November 10 Functions migration</a> separately.) Choose .NET 11 because you want what's in it, not to escape an end-of-support deadline. This piece is only about the upgrade decision. The <a href="https://devblogs.microsoft.com/dotnet/dotnet-11-rc-2/">RC2 post</a> covers what's new.</p>
+<h2>My hot take: the PR isn't ready just because CI is green</h2>
+<p>A TFM bump that compiles has proved very little. Most of what goes wrong in a major-version upgrade happens outside <code>Program.cs</code>: the SDK your CI agent picks, the OS inside your container, analyzers and restore warnings that turn into errors, and NuGet packages that pin exact versions.</p>
+<p>My stance: RC3 is a reasonable production bet for a stateless service with good integration tests and a fast rollback. That's true only after the four checks below. In my experience, teams often skip at least two of them.</p>
+<h2>Check 1: Pin the SDK, or CI will choose one for you</h2>
+<p>Without a <code>global.json</code>, the SDK resolver picks the highest SDK installed on the machine. According to the <a href="https://learn.microsoft.com/en-us/dotnet/core/tools/global-json">global.json docs</a>, whether prerelease SDKs count depends on where <code>dotnet</code> runs. Outside Visual Studio, <code>allowPrerelease</code> defaults to <code>true</code>. Inside a non-preview Visual Studio, it defaults to <code>false</code> unless <strong>Use previews of the .NET SDK</strong> is enabled.</p>
+<p>So one repo can build on your laptop with the rc.2 SDK, on the build agent with whatever image it has that week, and in Visual Studio with nothing at all. The RC2 post says this release is supported in Visual Studio 2026 Insiders, so your team's stable Visual Studio may not see the SDK.</p>
+<p>Pin it explicitly in the PR:</p>
+<pre>{<br>  &quot;sdk&quot;: {<br>    &quot;version&quot;: &quot;11.0.100-rc.3.26522.148&quot;,<br>    &quot;rollForward&quot;: &quot;latestFeature&quot;,<br>    &quot;allowPrerelease&quot;: true<br>  }<br>}</pre>
+<p><code>latestFeature</code> accepts this SDK or any higher 11.0 feature band and patch that's installed, which should let the GA 11.0.1xx SDK satisfy the pin. Confirm it the day GA lands by having CI print <code>dotnet --version</code>, so you don't assume it.</p>
+<p>Which setting should you use? Without lock files, use <code>latestFeature</code> as above. If you have <code>packages.lock.json</code>, the docs recommend <code>"rollForward": "disable"</code> so the SDK and the dependency graph stay in lockstep. In that case, use <code>disable</code> and bump the exact pin when GA ships.</p>
+<h2>Check 2: Your base image just changed operating system</h2>
+<p>This is the one I'd expect to bite in production. The default <code>10.0</code> tag of <code>mcr.microsoft.com/dotnet/aspnet</code> is Ubuntu 24.04 (noble). The default <code>11.0</code> tag, per the <a href="https://github.com/dotnet/dotnet-docker/blob/main/README.aspnet.md">dotnet-docker README</a>, is <strong>Ubuntu 26.04 (resolute)</strong>.</p>
+<p>Changing <code>10.0</code> to <code>11.0</code> in a Dockerfile looks like a runtime bump. It also upgrades the OS. Any <code>apt-get install</code> line, native library, font package or ICU assumption in your Dockerfile now runs on a newer distro. Also, <code>latest</code> stays on .NET 10 until GA, so a Dockerfile using <code>latest</code> hasn't upgraded at all, whatever your csproj says.</p>
+<p>Pin both stages to the patched RC and name the OS explicitly:</p>
+<pre>FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3-resolute AS build<br>WORKDIR /src<br>COPY *.csproj global.json ./<br>RUN dotnet restore<br>COPY . .<br>RUN dotnet publish -c Release -o /app --no-restore<br>&nbsp;<br>FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-resolute<br>WORKDIR /app<br>COPY --from=build /app .<br>ENTRYPOINT [&quot;dotnet&quot;, &quot;MyService.dll&quot;]</pre>
+<p>Copying the project files and restoring before <code>COPY . .</code> keeps the restore layer cached until your dependencies change.</p>
+<p>If you want to change only one thing at a time, <code>10.0-resolute</code> exists. Move your .NET 10 service to Ubuntu 26.04 first, ship that, then change the runtime. Those are two different kinds of failure, and you'll want to know which one paged you. (If your image build is already slow, my <a href="https://medium.com/@thecurlybrace/ci-cd-docker-your-pipeline-takes-forty-minutes-make-it-faster-4173447928f5">CI/CD and Docker piece</a> covers layer caching, which helps here.)</p>
+<h2>Check 3: The new SDK brings new warnings, and some of them are errors</h2>
+<p><code>AnalysisLevel</code> defaults to <code>latest</code> for any project targeting .NET 5 or later. A new SDK means a new set of analyzer rules running against old code. With <code>TreatWarningsAsErrors</code> on, you get build failures you didn't ask for.</p>
+<p>There's one I'd expect almost every service to hit, and it isn't an analyzer rule. In .NET 11, <a href="https://learn.microsoft.com/en-us/dotnet/core/compatibility/extensions/11/extensions-in-shared-framework">nine Microsoft.Extensions packages moved into the shared framework</a>, including <code>Logging.Abstractions</code>, <code>Options</code> and <code>DependencyInjection.Abstractions</code>. If you reference them explicitly, NuGet restore gives you NU1510. Projects that multi-target (<code>net10.0;net11.0</code>) don't get it. The fix is to delete those <code>PackageReference</code> lines. Do it in the bump PR, deliberately, so you don't find out about it at 4 p.m. on release day.</p>
+<p>Keep the rest of the upgrade PR about the runtime and pin the analyzers for now:</p>
+<pre>&lt;Project Sdk=&quot;Microsoft.NET.Sdk&quot;&gt;<br>  &lt;PropertyGroup&gt;<br>    &lt;TargetFramework&gt;net11.0&lt;/TargetFramework&gt;<br>    &lt;AnalysisLevel&gt;10.0&lt;/AnalysisLevel&gt;<br>    &lt;!-- Stopgap only, until the PackageReference lines are deleted --&gt;<br>    &lt;WarningsNotAsErrors&gt;$(WarningsNotAsErrors);NU1510&lt;/WarningsNotAsErrors&gt;<br>  &lt;/PropertyGroup&gt;<br>&lt;/Project&gt;</pre>
+<p><code>AnalysisLevel</code> controls the CA and IDE analyzer rules only. NU1510 comes from NuGet restore, so the <code>AnalysisLevel</code> pin does nothing for it. Either delete the references or use the <code>WarningsNotAsErrors</code> stopgap.</p>
+<p>Then open a second PR that removes the analyzer pin and fixes what appears. That way a reviewer can read each diff.</p>
+<h2>Check 4: Your NuGet graph has to support RC3</h2>
+<p>NuGet will happily restore <code>net10.0</code> libraries into a <code>net11.0</code> app. The trouble comes from packages that are tied to a specific framework release. EF Core providers are the classic case.</p>
+<p>There's a live example. On October 26, someone opened <a href="https://github.com/npgsql/efcore.pg/issues/4111">an issue on the Npgsql EF Core provider</a>: the provider's <code>11.0.0-rc.2</code> release pins exact rc.2 EF Core versions. Move your other EF Core packages to rc.3 and you get version conflicts, which NuGet reports as NU1608 and which become build failures under <code>TreatWarningsAsErrors</code>. As of October 26, 2026, the issue was open with no maintainer response.</p>
+<p>This creates a real conflict between the two RCs. The security fix says go to RC3, but your database provider may still require RC2. Before you merge, find every package with a version tied to the framework (EF Core and its provider, ASP.NET Core packages, anything versioned <code>11.0.0-rc.*</code>) that is still on rc.2, then check whether an rc.3 build exists:</p>
+<pre># Anything still on rc.2?<br>dotnet list package --include-transitive | grep &quot;rc.2&quot;<br>&nbsp;<br># Which packages have a newer prerelease available?<br>dotnet list package --outdated --include-prerelease</pre>
+<p>If a package still shows rc.2 and the outdated list shows no rc.3 build for it, that service isn't ready. Wait for GA.</p>
+<h2>The behaviour change your monitoring will notice first</h2>
+<p>One item from the <a href="https://learn.microsoft.com/en-us/dotnet/core/compatibility/11">.NET 11 breaking changes list</a> matters for anything running in an orchestrator. In .NET 11, when a <code>BackgroundService</code> throws and the host stops (the default <code>StopHost</code> behaviour), <code>RunAsync</code> and <code>StopAsync</code> now fail instead of completing successfully. Your process exits non-zero.</p>
+<p>That's the correct behaviour, and Microsoft's recommended action is to do nothing. But a worker that used to crash with exit code 0 will now show up as a failed container, a restarting pod or a CrashLoopBackOff. Restart counts and alerts may jump the day you deploy, even though nothing new is failing. Tell whoever is on call before you deploy.</p>
+<h2>Who should ship now, and who should wait</h2>
+<p><img alt="Merge now vs wait for GA" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/dotnet-11-rc2-go-live-ship-before-november-10/images/03-diagram-compare-1.png" /></p>
+<p>My honest view: for most teams, the biggest benefit of merging now isn't production. It's finding out what breaks while the PR is fresh and the people who wrote it still remember why. Do all four checks, deploy RC3 to staging today, and promote one low-risk service to production. When GA ships, the GA PR is mostly version strings.</p>
+<p>If any of the four checks fails, don't ship the RC. The go-live window ends in 15 days anyway. Just wait for GA.</p>
+<blockquote>Go-live means Microsoft supports the RC in production for four weeks. It doesn't mean your upgrade PR is ready.</blockquote>
+<p>Do this today: open your bump PR, change the base image tag to <code>11.0.0-rc.3-resolute</code>, and run the two package commands from Check 4. If the image doesn't build, or a package still shows rc.2 with no rc.3 available, you have your answer.</p>
+<p>Now the argument I want to have: if you're on .NET 8 this week, are you going to .NET 10 LTS or straight to .NET 11 to skip a hop? I say anyone choosing 11 for the support window hasn't done the arithmetic. Tell me I'm wrong.</p>
+<p><strong>Follow The Curly Brace for more backend war stories — no theory, only scars.</strong></p>
+</article></body></html>
