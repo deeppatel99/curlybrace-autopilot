@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your User Closed the Tab. Your API Kept Working for 40 Seconds Anyway.</title>
+<meta name="description" content="The connection pool exhaustion that starts with a CancellationToken nobody passes on, why that parameter is worse than having none, and the places you shouldn&#x27;t pass it.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}
+.banner button{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}
+.banner a{color:#1a1a1a}
+</style></head><body>
+<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>
+<article>
+<h1>Your User Closed the Tab. Your API Kept Working for 40 Seconds Anyway.</h1>
+<h2 class="sub">The connection pool exhaustion that starts with a CancellationToken nobody passes on, why that parameter is worse than having none, and the places you shouldn&#x27;t pass it.</h2>
+<p><img alt="Your User Closed the Tab. Your API Kept Working for 40 Seconds Anyway." src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/your-user-closed-the-tab-your-api-kept-working-for-40-seconds-anyway/images/01-cover.png" /></p>
+<p>It's 9:04 on the first Monday of the month. Month-end reporting day.</p>
+<p>The dashboard turns red. Not just the reports page. Login, search, checkout: all of them.</p>
+<p>The logs show one line, thousands of times:</p>
+<p><code>Timeout expired. The timeout period elapsed prior to obtaining a connection from the pool. This may have occurred because all pooled connections were in use and max pool size was reached.</code></p>
+<p>The database CPU looks fine. The servers look fine. Every connection is in use anyway, and nobody can say what is using them.</p>
+<p>This is a reconstruction of a failure that is common in real systems, and it usually goes like this. The question it answers: <strong>what does your API do with a request whose user has already left?</strong></p>
+<h2>The first three guesses, and why each was reasonable</h2>
+<p><strong>Guess one: a connection leak.</strong> The error message practically suggests it, and in older ADO.NET code it usually was a leak. But everything here goes through a scoped <code>DbContext</code> that the container disposes at the end of each request. That's worth confirming. A singleton holding a context is a classic leak (I wrote up that exact one in <a href="https://medium.com/@thecurlybrace/di-lifetimes-in-asp-net-core-the-captive-dependency-that-leaked-our-dbcontext-a9c56ef3a42e">DI Lifetimes in ASP.NET Core: The Captive Dependency That Leaked Our DbContext</a>). Here, the <code>number-of-reclaimed-connections</code> counter, which counts connections the GC had to clean up because nobody disposed them, sits at zero. No leak.</p>
+<p><strong>Guess two: just raise the pool size.</strong> <code>Max Pool Size</code> defaults to 100. Someone sets it to 300 and redeploys. The pool errors stop for a few minutes. Then the database starts struggling under 300 concurrent heavy queries, and the errors come back with new friends. Raising the limit doesn't fix demand that never stops. It only moves the bottleneck.</p>
+<p><strong>Guess three: the report query got slow.</strong> It didn't. It has taken about 40 seconds for months. That is why someone set <code>sql =&gt; sql.CommandTimeout(120)</code> on the reporting context last quarter, after reports started hitting the 30-second default. Remember that line. It matters later.</p>
+<h2>The clue: more running reports than people reading them</h2>
+<p>Someone runs this during the next spike:</p>
+<pre>SELECT r.session_id,<br>       r.status,<br>       r.total_elapsed_time / 1000 AS elapsed_s,<br>       s.program_name<br>FROM sys.dm_exec_requests AS r<br>JOIN sys.dm_exec_sessions AS s ON s.session_id = r.session_id<br>WHERE s.is_user_process = 1;</pre>
+<p>It returns about a hundred rows, and almost all of them are the same sales-report query. Meanwhile, the front-end analytics show roughly a third that many people actually on the reports page.</p>
+<p>So someone tries the obvious repro. Click <strong>Generate report</strong>, close the tab after three seconds, then rerun the query. The session is still there. Ten seconds later, still there. It finishes at about the 40-second mark and hands its results to a browser that is no longer listening.</p>
+<p>Now picture month-end behaviour. A user clicks Generate, waits, gets impatient and refreshes. That's two queries. They refresh again: three. Every refresh starts a new 40-second query, and none of the old ones stop.</p>
+<h2>A kitchen that cooks for empty tables</h2>
+<p>Think of the connection pool as a kitchen with 100 burners. A customer orders, waits a while, and walks out. Nobody tells the kitchen. The cook stays at the burner for the full 40 seconds, plates the dish and carries it to an empty table. Meanwhile the queue at the door gets longer, and some of those people are the same customers who walked out and came back to order again.</p>
+<p>The arithmetic is unforgiving. If each report holds a connection for 40 seconds, a pool of 100 is full at 100 / 40 = <strong>2.5 report requests per second</strong>. That's a small number for a whole company refreshing a page at 9 a.m. And once the pool is full, every other endpoint that needs a connection waits 15 seconds (the default <code>Connect Timeout</code>) and then fails.</p>
+<p><img alt="How a closed tab becomes an outage" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/your-user-closed-the-tab-your-api-kept-working-for-40-seconds-anyway/images/02-diagram-flow-1.png" /></p>
+<h2>The root cause is a polite lie in a method signature</h2>
+<p>ASP.NET Core already knows the user left. <a href="https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httpcontext.requestaborted"><code>HttpContext.RequestAborted</code></a> is a token that fires when the underlying connection is aborted. Add a <code>CancellationToken</code> parameter to a controller action or a minimal API handler and the framework binds that same token for you. The <a href="https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/parameter-binding">minimal API binding docs</a> list it as a special type that maps to <code>HttpContext.RequestAborted</code>.</p>
+<p>The controller did this correctly. The token died one layer down:</p>
+<p><img alt="Where the token goes to die" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/your-user-closed-the-tab-your-api-kept-working-for-40-seconds-anyway/images/03-gif-code-1.gif" /></p>
+<p>That's my position, and it's the point of this article: <strong>a <code>CancellationToken</code> parameter you never pass on is worse than having no parameter at all.</strong> With no parameter, a reviewer can see that cancellation is missing. With one, the signature says "this method stops when asked", the controller author believes it, the reviewer believes it, and the code ignores it. You get the cost of the feature and none of the protection.</p>
+<h2>The fix is almost insultingly simple</h2>
+<p>Pass it on. Every call that accepts a token gets the token.</p>
+<pre>public sealed class SalesReportService(ReportingDbContext db, HttpClient fx)<br>{<br>    public async Task&lt;SalesReport&gt; BuildAsync(DateTime from, DateTime to, CancellationToken ct)<br>    {<br>        var totals = await db.Orders<br>            .Where(o =&gt; o.PlacedAt &gt;= from &amp;&amp; o.PlacedAt &lt; to)<br>            .GroupBy(o =&gt; o.Currency)<br>            .Select(g =&gt; new CurrencyTotal(g.Key, g.Sum(o =&gt; o.Amount)))<br>            .ToListAsync(ct);<br>&nbsp;<br>        var rates = await fx.GetFromJsonAsync&lt;RateTable&gt;(&quot;rates&quot;, ct);<br>        return SalesReport.From(totals, rates!);<br>    }<br>}<br>&nbsp;<br>public sealed record CurrencyTotal(string Currency, decimal Sum);</pre>
+<p>This assumes .NET 8+ (primary constructors are C# 12) and an ASP.NET Core project, where the Web SDK's implicit usings bring in <code>System.Net.Http.Json</code>. Add <code>using Microsoft.EntityFrameworkCore;</code> for <code>ToListAsync</code>. Note that <code>= default</code> is gone. Callers now have to decide what to pass, and that decision is the whole point.</p>
+<p>When the token fires, EF Core hands it to SqlClient, which tells SQL Server to cancel the running command. The connection goes back to the pool instead of sitting on a burner for 40 seconds.</p>
+<p>The exception you get can vary. In practice, depending on where the cancel lands, SqlClient can surface it as an <code>OperationCanceledException</code> or as a <code>SqlException</code>. So don't catch by type. Catch by cause, once, near the top of the pipeline:</p>
+<pre>app.Use(async (context, next) =&gt;<br>{<br>    try<br>    {<br>        await next(context);<br>    }<br>    catch (Exception) when (context.RequestAborted.IsCancellationRequested)<br>    {<br>        // The client is gone. Nothing to send, nobody to page.<br>    }<br>});</pre>
+<p>Register it after <code>UseExceptionHandler</code>, so it sits inside the error handler and sees the exception first. The built-in handler already logs aborted requests at Debug level for <code>OperationCanceledException</code>. This filter also covers the <code>SqlException</code> case.</p>
+<p><strong>Verification:</strong> repeat the repro. Click Generate, close the tab and rerun the DMV query. The session is gone. Then replay the month-end pattern with refreshes in a load test and watch <code>number-of-active-connections</code> from the <a href="https://learn.microsoft.com/en-us/sql/connect/ado-net/event-counters">SqlClient event counters</a> with <code>dotnet-counters monitor --counters Microsoft.Data.SqlClient.EventSource -p &lt;pid&gt;</code> (the counters need Microsoft.Data.SqlClient 3.0+ on .NET Core 3.1+). It should track the number of people actually waiting, not the number of times they hit refresh.</p>
+<h2>Where you should not pass it</h2>
+<p>Cancellation means "the caller no longer wants the answer." It doesn't mean "undo the world." Sometimes the user leaving should <strong>not</strong> stop the work.</p>
+<p><img alt="Should RequestAborted reach this call?" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/your-user-closed-the-tab-your-api-kept-working-for-40-seconds-anyway/images/04-table-1.png" /></p>
+<p>When you choose not to cancel, write <code>CancellationToken.None</code> explicitly and add a comment saying why. That records the decision in the code, and it also tells the analyzer below that you meant it. For background work, take a token from <code>IHostApplicationLifetime</code> or your background service instead.</p>
+<h2>The three ways this will still surprise you</h2>
+<p><strong>Your proxy may never tell you.</strong> Kestrel can only signal <code>RequestAborted</code> when it sees its own connection close. If a reverse proxy or gateway in front of your app keeps the upstream connection open after the browser leaves, your app never finds out. Run the close-the-tab test in your real hosting setup, not just on localhost.</p>
+<p><strong>Synchronous code ignores tokens entirely.</strong> A <code>.ToList()</code> or a <code>.Result</code> deep in a call chain blocks with no token to check, and it can starve the thread pool while it waits. (That failure mode has its own article: <a href="https://medium.com/@thecurlybrace/one-innocent-line-result-froze-my-entire-api-i-was-blocking-async-without-knowing-it-8be867b6f4fd">One Innocent Line (.Result) Froze My Entire API</a>.)</p>
+<p><strong>That <code>CommandTimeout(120)</code> hid this for months.</strong> With the 30-second default, the reports would have failed loudly. Raising the timeout fixed the symptom and made every abandoned query live four times longer. When you raise a timeout, ask what will now be allowed to run that long without anyone waiting for it.</p>
+<h2>Make the compiler catch the lie</h2>
+<p>The .NET SDK analyzers already include <a href="https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2016">CA2016: Forward the CancellationToken parameter to methods that take one</a>. It flags exactly this bug: a method that receives a token and then calls something that accepts one without passing it. By default it is only a suggestion, which in practice means nobody sees it. Promote it:</p>
+<pre># .editorconfig<br>[*.cs]<br>dotnet_diagnostic.CA2016.severity = error</pre>
+<p>Expect a wall of errors the first time you build. Each one is a call that ignores the token it was given. The rule has limits, though. It only checks methods whose token is the last parameter. It can't help when a method takes no token at all, so review new async methods for a missing parameter too.</p>
+<p><img alt="60-Second Revision" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/your-user-closed-the-tab-your-api-kept-working-for-40-seconds-anyway/images/05-revision.png" /></p>
+<blockquote>A cancellation token you accept and never pass on is a promise your code breaks every time a user gives up.</blockquote>
+<p>Tonight, set CA2016 to <code>error</code> in one service and build it. Count the errors.</p>
+<p>Here's my question for the responses: should <code>= default</code> on a <code>CancellationToken</code> parameter be banned in application code, or is it a fair convenience? Tell me I'm wrong.</p>
+<p><strong>Follow The Curly Brace for more backend war stories — no theory, only scars.</strong></p>
+</article></body></html>
