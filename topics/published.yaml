@@ -1,6 +1,11 @@
 # Articles already live on Medium (newest first). Kept current from the RSS feed.
 # The planner never repeats these; the writer links related ones.
 
+- date: '2026-10-26'
+  title: .NET 11 RC2 Has a Go-Live License. Should You Ship It Before November 10?
+  subtitle: Yes, for well-tested stateless services, but only after four pre-merge checks. And the build you actually ship
+    isn’t RC2.
+  url: https://medium.com/@thecurlybrace/net-11-rc2-has-a-go-live-license-should-you-ship-it-before-november-10-1bd237b07f7d
 - date: '2026-10-21'
   title: Your Azure Functions Lose Support on November 10, 2026. Migrate Without Breaking Them.
   subtitle: In-process apps keep running after the deadline but stop getting fixes. Here is the move to the isolated worker

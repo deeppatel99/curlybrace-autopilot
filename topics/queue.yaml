@@ -53,8 +53,10 @@
   notes: It opens with connection pool exhaustion during a traffic spike, traced back to abandoned report
     requests that kept running because nobody passed HttpContext.RequestAborted down to EF Core and HttpClient;
     the stance is that a CancellationToken parameter you never pass on is worse than having none at all.
-  status: pending
+  status: done
   auto: true
+  done_on: '2026-10-29'
+  slug: your-user-closed-the-tab-your-api-kept-working-for-40-seconds-anyway
 - topic: Two Users Edited the Same Order. The Second Save Silently Erased the First. rowversion or UPDLOCK?
   track: sql
   format: versus
