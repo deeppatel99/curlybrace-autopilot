@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>A Support Agent and a Service Edited the Same Order. The Second Save Silently Erased the First.</title>
+<meta name="description" content="Optimistic concurrency with rowversion should be your default, and UPDLOCK belongs on exactly one kind of row.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}
+.banner button{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}
+.banner a{color:#1a1a1a}
+</style></head><body>
+<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>
+<article>
+<h1>A Support Agent and a Service Edited the Same Order. The Second Save Silently Erased the First.</h1>
+<h2 class="sub">Optimistic concurrency with rowversion should be your default, and UPDLOCK belongs on exactly one kind of row.</h2>
+<p><img alt="A Support Agent and a Service Edited the Same Order. The Second Save Silently Erased the First." src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/rowversion-vs-updlock-lost-update-ef-core-sql-server/images/01-cover.png" /></p>
+<p>It's 10:41 a.m. A customer calls in: the parcel is about to go to their old flat.</p>
+<p>Your support agent fixes the address and clicks Save. 200 OK. Green toast.</p>
+<p>Eight seconds later the warehouse service marks the order as Picked. The old address goes back into the row with it.</p>
+<p>No exception. No log line. The parcel ships to the wrong door.</p>
+<p>So which do you want: something that detects the conflict when you save, or a lock that stops it from happening at all?</p>
+<h2>Nothing in your code threw. That's the problem.</h2>
+<p>Each request did exactly what it was told. The warehouse service loaded order #5521 a few seconds before the correction, mapped its message onto the entity, and called <code>db.Orders.Update(order)</code>. <code>Update()</code> marks every property as modified, so EF Core wrote every column. That included the address it had read before the fix.</p>
+<p>First, stop calling <code>Update()</code> on mapped entities. Set only the properties you changed on a tracked entity, or use <code>ExecuteUpdate</code> on <code>Status</code>. That removes this bug. rowversion is still needed for the case where both writers touch the same column.</p>
+<p>This is the classic lost update. Two writers read the same version, and the last one to save wins. SQL Server's default isolation does nothing to stop it, because neither statement was ever in conflict with the other. They happened at different times.</p>
+<p><img alt="The lost update, second by second" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/rowversion-vs-updlock-lost-update-ef-core-sql-server/images/02-gif-flow-1.gif" /></p>
+<h2>Two ways to guard the filing cabinet</h2>
+<p>Picture the order as a paper folder in a filing cabinet.</p>
+<p><strong>Optimistic</strong> means a version stamp on the folder. Anyone can take a photocopy and work on it. The clerk only files your changes if the stamp on your copy still matches the stamp in the cabinet. If it doesn't, your form comes back with "someone got here first."</p>
+<p><strong>Pessimistic</strong> means taking the folder out of the cabinet. Nobody else can work on it until you bring it back. Nothing ever conflicts, but everyone else waits in the corridor.</p>
+<h3>rowversion: check the stamp at save time</h3>
+<p>A SQL Server <code>rowversion</code> column is an 8-byte value that the database changes on every update to the row. Mark it with <code>[Timestamp]</code> (or <code>.IsRowVersion()</code>) and EF Core adds it to the <code>WHERE</code> clause of every <code>UPDATE</code> and <code>DELETE</code>. If someone changed the row in the meantime, zero rows match, and <code>SaveChanges</code> throws <code>DbUpdateConcurrencyException</code>. The <a href="https://learn.microsoft.com/en-us/ef/core/saving/concurrency">EF Core concurrency docs</a> walk through the generated SQL.</p>
+<p>No locks are held between the read and the write. That's why it works across HTTP requests, browser tabs and coffee breaks.</p>
+<h3>UPDLOCK: take the folder out</h3>
+<p><code>WITH (UPDLOCK)</code> on a <code>SELECT</code> takes update locks and, according to the <a href="https://learn.microsoft.com/en-us/sql/t-sql/queries/hints-transact-sql-table">table hints reference</a>, holds them "until the transaction completes." Update locks are incompatible with each other, so a second reader using <code>UPDLOCK</code> waits until the first one commits. Plain readers aren't blocked, and that will matter later.</p>
+<p>Why not just <code>HOLDLOCK</code>? <code>HOLDLOCK</code> is the same as <code>SERIALIZABLE</code>. It holds <em>shared</em> locks, and two sessions can both hold one. Then both try to upgrade to exclusive and you get a textbook conversion deadlock. (I went through how you cause your own deadlocks in <a href="https://medium.com/@thecurlybrace/advanced-sql-window-functions-isolation-levels-and-the-deadlock-you-caused-yourself-9dbb17d39376">Advanced SQL: Window Functions, Isolation Levels, and the Deadlock You Caused Yourself</a>.) Use <code>UPDLOCK, HOLDLOCK</code> together only when the row might not exist yet (an upsert) or you need to lock a key range against inserts.</p>
+<h2>Where they actually differ</h2>
+<p><img alt="rowversion vs UPDLOCK" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/rowversion-vs-updlock-lost-update-ef-core-sql-server/images/03-table-1.png" /></p>
+<p>The last row is the one people miss. A <code>rowversion</code> changes whatever touched the row: a stored procedure, a script someone ran at 2 a.m., a service you didn't know existed. <code>UPDLOCK</code> only coordinates the callers that agreed to use it.</p>
+<h2>The same fix, twice</h2>
+<h3>Optimistic: rowversion with EF Core</h3>
+<pre>using System.ComponentModel.DataAnnotations;<br>using Microsoft.EntityFrameworkCore;<br>&nbsp;<br>public class Order<br>{<br>    public int Id { get; set; }<br>    public string ShippingAddress { get; set; } = &quot;&quot;;<br>    public string Status { get; set; } = &quot;&quot;;<br>&nbsp;<br>    [Timestamp]<br>    public byte[] Version { get; set; } = null!;<br>}<br>&nbsp;<br>[PrimaryKey(nameof(ProductId), nameof(WarehouseId))]<br>public class InventoryItem<br>{<br>    public int ProductId { get; set; }<br>    public int WarehouseId { get; set; }<br>    public int OnHand { get; set; }<br>}<br>&nbsp;<br>public class Reservation<br>{<br>    public int Id { get; set; }<br>    public int OrderId { get; set; }<br>    public int ProductId { get; set; }<br>    public int WarehouseId { get; set; }<br>    public int Qty { get; set; }<br>}<br>&nbsp;<br>public class ShopDb(DbContextOptions&lt;ShopDb&gt; options) : DbContext(options)<br>{<br>    public DbSet&lt;Order&gt; Orders =&gt; Set&lt;Order&gt;();<br>    public DbSet&lt;InventoryItem&gt; Inventory =&gt; Set&lt;InventoryItem&gt;();<br>    public DbSet&lt;Reservation&gt; Reservations =&gt; Set&lt;Reservation&gt;();<br>}</pre>
+<p>Now the endpoint. One line in it matters more than everything else:</p>
+<pre>using Microsoft.AspNetCore.Http;<br>using Microsoft.EntityFrameworkCore;<br>&nbsp;<br>public record AddressChange(string Address, string Version);<br>&nbsp;<br>public static class OrderEndpoints<br>{<br>    public static async Task&lt;IResult&gt; ChangeAddress(int id, AddressChange change, ShopDb db)<br>    {<br>        var token = new byte[8];<br>        if (change.Version is null<br>            || !Convert.TryFromBase64String(change.Version, token, out var written)<br>            || written != 8)<br>            return Results.BadRequest(&quot;Missing or invalid version.&quot;);<br>&nbsp;<br>        var order = await db.Orders.FindAsync(id);<br>        if (order is null) return Results.NotFound();<br>&nbsp;<br>        // Compare against the version the user saw, not the one we just loaded.<br>        db.Entry(order).Property(o =&gt; o.Version).OriginalValue = token;<br>&nbsp;<br>        order.ShippingAddress = change.Address;<br>&nbsp;<br>        try<br>        {<br>            await db.SaveChangesAsync();<br>            return Results.Ok(new { Version = Convert.ToBase64String(order.Version) });<br>        }<br>        catch (DbUpdateConcurrencyException)<br>        {<br>            return Results.Conflict(&quot;This order changed since you opened it. Reload and retry.&quot;);<br>        }<br>    }<br>}</pre>
+<p>The client gets <code>Version</code> when it loads the order and sends it back with the edit. If you prefer HTTP semantics, put it in an <code>ETag</code> and return 412 on a mismatched <code>If-Match</code>. The mechanism is the same either way.</p>
+<p>For machine writers like the warehouse service, don't show anyone a 409. Catch the exception, reload, reapply only your change (the status), and retry a bounded number of times.</p>
+<h3>Three ways rowversion will still surprise you</h3>
+<p><strong>The token never left the server.</strong> If you skip the <code>OriginalValue</code> line, EF compares against the version it loaded a millisecond earlier in the same request. The check covers almost no time at all. Round-trip the token or you haven't fixed anything.</p>
+<p><strong>ExecuteUpdate doesn't check it.</strong> The <a href="https://learn.microsoft.com/en-us/ef/core/saving/execute-insert-update-delete#concurrency-control-and-rows-affected">ExecuteUpdate docs</a> say plainly that these methods "cannot automatically apply concurrency control." Put the version in your <code>Where</code> and check that the affected-row count is 1.</p>
+<p><strong>It protects the whole row.</strong> A status change by the warehouse will also conflict with an address edit, even though the two columns have nothing to do with each other. If those false conflicts hurt, switch to an application-managed <code>[ConcurrencyCheck]</code> token that you only bump for the column groups that matter. Or split the row.</p>
+<h3>Pessimistic: UPDLOCK inside a transaction</h3>
+<p>This is the stock reservation path: a hot set of rows that every checkout hits, and a decision that takes several steps. Check stock across the warehouses, record a reservation, then decrement the one you picked.</p>
+<pre>using Microsoft.EntityFrameworkCore;<br>&nbsp;<br>public static class InventoryService<br>{<br>    public static async Task&lt;bool&gt; ReserveStock(ShopDb db, int orderId, int productId, int qty)<br>    {<br>        await using var tx = await db.Database.BeginTransactionAsync();<br>&nbsp;<br>        var stock = await db.Inventory<br>            .FromSql($&quot;SELECT * FROM Inventory WITH (UPDLOCK, ROWLOCK) WHERE ProductId = {productId}&quot;)<br>            .ToListAsync();<br>&nbsp;<br>        var source = stock.FirstOrDefault(i =&gt; i.OnHand &gt;= qty);<br>        if (source is null) return false;   // disposing tx rolls back, locks released<br>&nbsp;<br>        db.Reservations.Add(new Reservation<br>        {<br>            OrderId = orderId,<br>            ProductId = productId,<br>            WarehouseId = source.WarehouseId,<br>            Qty = qty<br>        });<br>        source.OnHand -= qty;<br>&nbsp;<br>        await db.SaveChangesAsync();<br>        await tx.CommitAsync();<br>        return true;<br>    }<br>}</pre>
+<p>The transaction is not optional. Without one, the <code>SELECT</code> runs in autocommit and the lock is released the moment it returns. The hint is still there, it just protects nothing.</p>
+<h2>My hot take: half the time you need neither</h2>
+<p>Now strip that reservation down: one warehouse, no reservation row. The whole business rule becomes "decrement if there's enough." That fits in a <code>WHERE</code> clause:</p>
+<pre>var reserved = await db.Inventory<br>    .Where(i =&gt; i.ProductId == productId<br>             &amp;&amp; i.WarehouseId == warehouseId<br>             &amp;&amp; i.OnHand &gt;= qty)<br>    .ExecuteUpdateAsync(s =&gt; s.SetProperty(i =&gt; i.OnHand, i =&gt; i.OnHand - qty));<br>&nbsp;<br>return reserved == 1;</pre>
+<p>That's a single atomic <code>UPDATE</code> (EF Core 7+), with no read, no lock hint and no window between check and write. <code>UPDLOCK</code> earns its place when the decision really does need several steps in C#, like the version above: check stock across two warehouses, write a reservation row, then decrement. If the rule fits in one statement, write one statement.</p>
+<h2>Pick one in ten seconds</h2>
+<p><strong>Use rowversion</strong> when the read and the write happen in different requests, especially with a human in between. That covers every edit screen, every PATCH endpoint, every aggregate a user can open in two tabs. Make it the default on every table people edit.</p>
+<p><strong>Use UPDLOCK</strong> when all of these are true: read, decide and write happen in one short transaction; the row is hot enough that conflicts are normal, not rare; and the decision can't be written as a single conditional <code>UPDATE</code>. That's the one kind of row UPDLOCK belongs on: a short-lived, hot row where read, decide and write take several statements. Inventory where the reservation needs more than one statement, seat holds and per-tenant quota rows qualify. Order headers don't.</p>
+<p><strong>Use a conditional UPDATE</strong> when the rule fits in a <code>WHERE</code> clause. It beats both.</p>
+<p><strong>Never hold UPDLOCK</strong> across user think time, an outbound HTTP call or an LLM call. A transaction that waits on something outside the database turns your hottest row into a queue.</p>
+<h2>The wrong choice, and what it costs</h2>
+<p>The usual reaction to a lost-update bug is "we need a lock." So someone adds <code>UPDLOCK</code> to the query that loads the edit screen. In autocommit that does nothing. If someone "fixes" it by holding a transaction open across the request, it's worse: a connection pinned per open screen, blocked writers, and pool exhaustion the next time traffic spikes. That's the 2 a.m. page you were trying to avoid.</p>
+<p>The quieter mistake goes the other way: <code>UPDLOCK</code> on one code path and not on another. Update locks don't block plain readers on any SQL Server, because S and U are compatible. On Azure SQL Database, where <code>READ_COMMITTED_SNAPSHOT</code> is on by default, the unhinted read doesn't even wait for the other session's uncommitted write. Either way, it reads the old value and overwrites. Your lost update is back, plus some blocking.</p>
+<p><img alt="60-Second Revision" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/rowversion-vs-updlock-lost-update-ef-core-sql-server/images/04-revision.png" /></p>
+<blockquote>Detect conflicts by default with rowversion. Lock only short, hot rows, and only when the rule doesn't fit in a single UPDATE.</blockquote>
+<p>Do this today: search your codebase for <code>.Update(</code> on entities built from DTOs, and check whether any of those tables has a concurrency token. Each one that doesn't can lose an update right now without telling anyone.</p>
+<p>Here's my challenge: is there any table a human edits where you'd pick UPDLOCK over rowversion? Name it in the responses and tell me I'm wrong.</p>
+<p><strong>Follow The Curly Brace for more backend war stories — no theory, only scars.</strong></p>
+</article></body></html>
