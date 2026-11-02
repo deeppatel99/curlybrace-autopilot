@@ -64,8 +64,10 @@
     a few seconds later, then pits optimistic concurrency (EF Core rowversion and DbUpdateConcurrencyException)
     against pessimistic locking (UPDLOCK/HOLDLOCK), arguing that optimistic should be the default and
     that locks only belong on short, high-contention hot rows such as inventory counters.
-  status: pending
+  status: done
   auto: true
+  done_on: '2026-11-02'
+  slug: rowversion-vs-updlock-lost-update-ef-core-sql-server
 - topic: Our Pipeline Had a Client Secret That Expired Every 12 Months. Workload Identity Federation Deleted
     It.
   track: azure
