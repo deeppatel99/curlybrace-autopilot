@@ -1,6 +1,10 @@
 # Articles already live on Medium (newest first). Kept current from the RSS feed.
 # The planner never repeats these; the writer links related ones.
 
+- date: '2026-11-02'
+  title: A Support Agent and a Service Edited the Same Order. The Second Save Silently Erased the First.
+  subtitle: Optimistic concurrency with rowversion should be your default, and UPDLOCK belongs on exactly one kind of row.
+  url: https://medium.com/@thecurlybrace/a-support-agent-and-a-service-edited-the-same-order-the-second-save-silently-erased-the-first-bf4e3608775c
 - date: '2026-10-29'
   title: Your User Closed the Tab. Your API Kept Working for 40 Seconds Anyway.
   subtitle: The connection pool exhaustion that starts with a CancellationToken nobody passes on, why that parameter is worse

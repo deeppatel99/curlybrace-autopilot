@@ -76,8 +76,10 @@
     then walks through moving Azure DevOps and GitHub Actions service connections to OIDC workload identity
     federation, with the trust config, the scoped role assignments and the gotchas; the stance is that
     a long-lived secret in a CI pipeline is now indefensible.
-  status: pending
+  status: done
   auto: true
+  done_on: '2026-11-09'
+  slug: pipeline-client-secret-workload-identity-federation-azure-devops-github-actions
 - topic: We Passed a CustomerId Where an OrderId Belonged. The Compiler Shrugged. Strongly Typed IDs Wouldn't
     Have.
   track: design
