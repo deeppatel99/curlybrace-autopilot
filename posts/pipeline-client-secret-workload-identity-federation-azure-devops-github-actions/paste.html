@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your Pipeline&#x27;s Client Secret Will Expire. Workload Identity Federation Deletes It.</title>
+<meta name="description" content="How to move Azure DevOps and GitHub Actions to OIDC with scoped identities and exact subject claims, plus the gotchas that will still catch you.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}
+.banner button{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}
+.banner a{color:#1a1a1a}
+</style></head><body>
+<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>
+<article>
+<h1>Your Pipeline&#x27;s Client Secret Will Expire. Workload Identity Federation Deletes It.</h1>
+<h2 class="sub">How to move Azure DevOps and GitHub Actions to OIDC with scoped identities and exact subject claims, plus the gotchas that will still catch you.</h2>
+<p><img alt="Your Pipeline's Client Secret Will Expire. Workload Identity Federation Deletes It." src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/pipeline-client-secret-workload-identity-federation-azure-devops-github-actions/images/01-cover.png" /></p>
+<p>It's 8:40 on a Tuesday morning. Every deployment pipeline in the organisation is red.</p>
+<p>No code changed overnight. No one touched the infrastructure. Every Azure step fails with the same line:</p>
+<p><code>AADSTS7000215: Invalid client secret provided.</code></p>
+<p>Azure DevOps reports this code when a service connection's secret has expired, even though the message reads like a wrong value. (Entra's own code for an expired secret is <code>AADSTS7000222</code>.)</p>
+<p>Twelve months ago someone created a service principal, picked an expiry from the dropdown and pasted the secret into a service connection. The calendar reminder went to someone who has since left. The secret expired quietly at midnight.</p>
+<p>So how do you make sure this never happens again? You don't build a better rotation process. You remove the secret.</p>
+<h2>Rotation was never going to fix this</h2>
+<p>The first fix everyone reaches for is a better process. Put the expiry in a shared calendar. Write a script that rotates the secret every 90 days and updates the service connection. Store it in Key Vault and have the pipeline read it from there.</p>
+<p>Every one of these still leaves a long-lived credential in the system. It sits in a service connection, a repository secret, or the memory of the engineer who pasted it. The rotation script needs its own credential to rotate the others. Key Vault needs an identity to read from it. You have added steps without reducing the risk.</p>
+<p>The exposure doesn't go away either. A client secret works from anywhere: your hosted agent, a laptop, or a server in another country. If it leaks through a log line, a fork or a misconfigured variable group, whoever has it can use it until it expires. (I covered what the first 20 minutes after a leak look like in <a href="https://medium.com/@thecurlybrace/i-pushed-a-database-password-to-github-heres-what-happens-in-the-next-20-minutes-ab8cee1918ef">I Pushed a Database Password to GitHub</a>.)</p>
+<p>My position: in 2026, a long-lived secret in a CI pipeline that deploys to Azure can't be defended. Both major CI systems support a better option, it costs nothing, and the migration is a small, mostly mechanical change per pipeline.</p>
+<h2>How federation works without a password</h2>
+<p>Think of a hotel that has stopped issuing permanent room keys. When you arrive, the front desk checks your booking and gives you a key card that works for one room, for one stay. Nobody has a master key to lose. If a card goes missing, it stops working soon anyway.</p>
+<p>Workload identity federation works the same way. The CI system (GitHub, or Azure DevOps) is the booking system. When a job runs, it issues a signed OIDC token that says which job is running. For example: "this is repo <code>contoso/orders-api</code>, running in environment <code>production</code>." Microsoft Entra ID is the front desk. It checks the token against a <strong>federated credential</strong> you configured on an identity. If the issuer, subject and audience match exactly, Entra returns a short-lived Azure access token.</p>
+<p><img alt="One deployment, zero stored secrets" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/pipeline-client-secret-workload-identity-federation-azure-devops-github-actions/images/02-gif-flow-1.gif" /></p>
+<p>The pipeline now stores only a client ID, a tenant ID and a subscription ID. These are identifiers. On their own they can't be exchanged for anything, so in GitHub you can keep them as variables (<code>vars.*</code>) rather than secrets.</p>
+<h2>The architecture: one identity per environment, trust per pipeline</h2>
+<p>This is the design I recommend you build:</p>
+<ul>
+<li>One <strong>user-assigned managed identity</strong> per environment (<code>id-deploy-staging</code>, <code>id-deploy-prod</code>).</li>
+<li>Each identity has a <strong>role assignment scoped to one resource group</strong> and only the role the deployment needs.</li>
+<li>Each identity has one <strong>federated credential per pipeline</strong> allowed to use it. The GitHub credential is tied to a GitHub environment. The Azure DevOps credential is tied to a specific service connection.</li>
+</ul>
+<p><img alt="Who can deploy to production, and how" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/pipeline-client-secret-workload-identity-federation-azure-devops-github-actions/images/03-diagram-layers-1.png" /></p>
+<p>Three decisions matter. Each one has a reasonable alternative that I'd reject.</p>
+<h2>Decision 1: a managed identity, not an app registration</h2>
+<p>Both work. Microsoft's docs support federated credentials on either an <a href="https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect">app registration or a user-assigned managed identity</a>.</p>
+<p>I'd reject the app registration for one reason: someone can add a client secret back to it. Six months from now, someone needs to run a deployment from a laptop "just once" and clicks <strong>New client secret</strong>. You're back where you started, and nobody is notified. A user-assigned managed identity can't have a client secret, so that shortcut doesn't exist.</p>
+<p>The other benefits are practical. A managed identity is an Azure resource. It lives in a resource group, you declare it in Bicep next to everything else, and creating it doesn't require permission to register Entra applications. Many tenants restrict that permission anyway.</p>
+<p>One cost: there's a <a href="https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations">hard limit of 20 federated credentials</a> per identity, and wildcards aren't supported in any field of a standard federated credential. One identity per environment, with a few pipelines each, stays well under that limit. One identity shared by the whole organisation won't.</p>
+<p>Flexible federated credentials on app registrations can pattern-match claims; managed identities can't. That's a real trade-off of this decision: you give up wildcards to make sure no one can add a secret back.</p>
+<h2>Decision 2: trust the environment, not the branch</h2>
+<p>GitHub sets the token's <code>sub</code> claim based on the job's context, and the federated credential has to match it exactly. This is the first thing that will catch you out.</p>
+<p><img alt="GitHub OIDC subject claims, and what each one trusts" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/pipeline-client-secret-workload-identity-federation-azure-devops-github-actions/images/04-table-1.png" /></p>
+<p>I'd reject branch-based trust (<code>ref:refs/heads/main</code>) for production. Anyone who can push to <code>main</code>, or get a workflow change merged into it, gets production credentials. Environment-based trust adds GitHub's environment protection rules on top: required reviewers, wait timers, and limits on which branches can deploy. The token can't be issued until those checks pass.</p>
+<p>The precedence rule from <a href="https://docs.github.com/en/actions/reference/security/oidc">GitHub's OIDC reference</a> causes most first-day failures. If you add <code>environment: production</code> to a job that used to rely on a branch-based credential, the subject changes and the exchange fails. Change the job and the credential together.</p>
+<p>The second trap is the subject format itself. Since July 15, 2026, GitHub gives every repository created, renamed or transferred on github.com an <a href="https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/">immutable default subject</a> that includes the owner ID and repository ID: <code>repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:production</code>. Older repositories keep the name-based format unless they opt in. Copy a name-based subject for a new repository and the exchange fails with <code>AADSTS70021</code>. Renaming or transferring an older repository switches it to the new format too, so update the credential in the same change. GitHub Enterprise Server doesn't use immutable subjects.</p>
+<p>The new format is also safer. With a name-based subject, a different repository that later ends up with the same owner and name produces tokens that match your credential. That's subject recycling, and IDs stop it. Microsoft's <a href="https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-github-immutable-subjects">guide to immutable subjects</a> covers migrating existing credentials. To find the IDs, run <code>gh api repos/OWNER/REPO --jq '.owner.id, .id'</code>.</p>
+<h2>Decision 3: scope the role to the resource group, not the subscription</h2>
+<p>The automatic Azure DevOps setup asks for a subscription and lets you leave the resource group empty. Many teams then give that identity Contributor on the whole subscription. Federation removes the leaked-secret risk. It does nothing about a job that has more permission than it needs.</p>
+<p>A pipeline that deploys an App Service needs to deploy to one App Service. <code>Website Contributor</code> on that resource group is enough, but know what it grants: it covers every site in the resource group, and <code>Microsoft.Web/sites/*</code> includes reading app settings and connection strings. If the resource group holds more than this one app, the tighter option is to assign the role on the site itself by setting <code>scope</code> on the role assignment in Bicep. If the pipeline also runs Bicep that creates resources, give it Contributor on that resource group and nothing wider. Never give it <code>Owner</code> or <code>User Access Administrator</code>: a pipeline that can grant roles can grant itself anything.</p>
+<h2>The critical code</h2>
+<p>Here is the identity, the GitHub trust and the scoped role, all in Bicep. Deploy it with your own account or a bootstrap pipeline that has rights to create role assignments. The deploy identity should never deploy itself.</p>
+<pre>param location string = resourceGroup().location<br>param githubOwner string = 'contoso'<br>param githubOwnerId string<br>param githubRepoName string = 'orders-api'<br>param githubRepoId string<br>&nbsp;<br>// Website Contributor (built-in role definition ID)<br>var websiteContributor = 'de139f84-1756-47ae-9be6-808fbbe84772'<br>&nbsp;<br>resource deployId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {<br>  name: 'id-deploy-prod'<br>  location: location<br>}<br>&nbsp;<br>resource githubProd 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {<br>  parent: deployId<br>  name: 'github-orders-api-production'<br>  properties: {<br>    issuer: 'https://token.actions.githubusercontent.com'<br>    // Immutable subject; legacy repos use 'repo:${githubOwner}/${githubRepoName}:environment:production'<br>    subject: 'repo:${githubOwner}@${githubOwnerId}/${githubRepoName}@${githubRepoId}:environment:production'<br>    audiences: [ 'api://AzureADTokenExchange' ]<br>  }<br>}<br>&nbsp;<br>resource deployRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {<br>  name: guid(resourceGroup().id, deployId.id, websiteContributor)<br>  properties: {<br>    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', websiteContributor)<br>    principalId: deployId.properties.principalId<br>    principalType: 'ServicePrincipal'<br>  }<br>}<br>&nbsp;<br>output clientId string = deployId.properties.clientId</pre>
+<p>If you add more federated credentials to the same identity, chain them with <code>dependsOn</code>. Entra rejects concurrent writes to credentials on one managed identity with a <code>409 Conflict</code>.</p>
+<p>The GitHub workflow is short. The job needs <code>id-token: write</code>, or it can't request the OIDC token at all.</p>
+<pre>name: deploy<br>on:<br>  push:<br>    branches: [main]<br>&nbsp;<br>jobs:<br>  deploy:<br>    runs-on: ubuntu-latest<br>    environment: production<br>    permissions:<br>      id-token: write<br>      contents: read<br>    steps:<br>      - uses: actions/checkout@v5<br>      - run: dotnet publish -c Release -o ./publish<br>      - uses: azure/login@v3<br>        with:<br>          client-id: ${{ vars.AZURE_CLIENT_ID }}<br>          tenant-id: ${{ vars.AZURE_TENANT_ID }}<br>          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}<br>      - uses: azure/webapps-deploy@v3<br>        with:<br>          app-name: app-orders-prod<br>          package: ./publish</pre>
+<p>Once a job sets its own <code>permissions</code>, every scope it doesn't list is set to none. That's why <code>contents: read</code> is there: without it, checkout can fail.</p>
+<h2>Azure DevOps: convert first, then fix the scripts</h2>
+<p>On Azure DevOps, you may not need to create anything. If Azure DevOps created the service connection automatically and only one project uses it, the <a href="https://learn.microsoft.com/en-us/azure/devops/pipelines/library/connect-to-azure">conversion tool</a> switches it to workload identity federation in place. Open <strong>Project settings &gt; Service connections</strong>, select the connection and choose <strong>Convert</strong>. If the secret has already expired, the page shows a different conversion option. Pipelines keep referring to the connection by name, so no YAML changes. You can revert within seven days. After that, reverting means creating a new secret by hand.</p>
+<p>Treat conversion as a quick win, not the end state. It keeps the app registration Azure DevOps created, which is exactly the kind of identity Decision 1 warns about: someone can add a client secret back to it. Once the seven-day revert window has passed, open the app registration in Entra, go to <strong>Certificates &amp; secrets</strong> and delete any client secret still listed there. Later, replace the connection with one that uses the managed identity, as below.</p>
+<p>Connections you created manually, or that are shared across projects, can't be converted. For those, and as the end state for the rest, create a new workload identity federation connection, select the managed identity, and add the federated credential Azure DevOps generates:</p>
+<pre>az identity federated-credential create \<br>  --name ado-prod-deploy \<br>  --identity-name id-deploy-prod \<br>  --resource-group rg-orders-prod \<br>  --issuer &quot;&lt;Issuer from the service connection&gt;&quot; \<br>  --subject &quot;&lt;Subject identifier from the service connection&gt;&quot; \<br>  --audiences api://AzureADTokenExchange</pre>
+<p>Copy the issuer and subject from the service connection page. Don't build them yourself. New connections use the Microsoft Entra issuer (<code>https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code>). Older federated connections used <code>https://vstoken.dev.azure.com/&lt;org-id&gt;</code>, which is <a href="https://learn.microsoft.com/en-us/azure/devops/pipelines/release/convert-service-connections">deprecated and retires on July 1, 2027</a>. If you migrated early, check for the deprecation flag in your service connection list and use the <strong>Update</strong> action on flagged connections.</p>
+<p>Converting the connection is the easy part. What actually breaks are scripts that read the secret directly. Teams often run Terraform from <code>AzureCLI@2</code> with <code>addSpnToEnvironment: true</code>. That option sets <code>servicePrincipalKey</code> for secret-based connections and <code>idToken</code> for federated ones. A script that reads <code>$servicePrincipalKey</code> now gets an empty value:</p>
+<pre>- task: AzureCLI@2<br>  inputs:<br>    azureSubscription: prod-deploy<br>    scriptType: bash<br>    scriptLocation: inlineScript<br>    addSpnToEnvironment: true<br>    inlineScript: |<br>      export ARM_CLIENT_ID=$servicePrincipalId<br>      export ARM_TENANT_ID=$tenantId<br>      export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)<br>      export ARM_OIDC_TOKEN=$idToken<br>      export ARM_USE_OIDC=true<br>      terraform apply -auto-approve</pre>
+<p>The azurerm 4.x provider requires a subscription ID, hence <code>ARM_SUBSCRIPTION_ID</code>. <code>ARM_OIDC_TOKEN</code> passes a raw token that can't be refreshed, so a long <code>terraform apply</code> can hit the <code>AADSTS700024</code> error described below. For long applies, use the azurerm provider's built-in Azure DevOps service-connection OIDC support instead, which requests fresh tokens from the pipeline. The provider's authentication guide lists the variables it needs.</p>
+<p>Search your repositories for <code>servicePrincipalKey</code> before you convert anything. Each match is a script that will break.</p>
+<h2>The five ways this will still catch you</h2>
+<p><strong>Entra accepts a typo in the subject when you save it.</strong> A federated credential with a wrong subject is created without error, and the problem only shows up at token exchange. Microsoft's own docs warn about this. When you see <code>AADSTS70021: No matching federated identity record found</code>, decode the token's actual <code>sub</code> claim and compare it to the credential character by character.</p>
+<p><strong>New credentials take a few minutes to propagate.</strong> A credential you just created can return the same <code>AADSTS70021</code> for several minutes while it replicates. Wait before you start debugging what looks like a mismatch.</p>
+<p><strong>Long jobs can outlive the token.</strong> The CI token is short-lived. If a job logs in and then spends a long time building before its first Azure call, you can get <code>AADSTS700024: Client assertion is not within its valid time range</code>. Microsoft's guidance for Azure DevOps is to make Azure calls early in the script, so the access token is cached for later commands. For runs longer than about an hour, it recommends a managed identity, whose tokens last around 24 hours. In GitHub Actions, run <code>azure/login</code> immediately before the step that needs it.</p>
+<p><strong>Renames break the old subject format.</strong> The older Azure DevOps subject was <code>sc://&lt;org&gt;/&lt;project&gt;/&lt;connection&gt;</code>. Rename the project and the subject no longer matches. Converting to the Entra issuer gives you a new subject identifier; check it on the connection page rather than assuming it survives a rename. The same applies on GitHub: renaming a repository moves it to the immutable subject format.</p>
+<p><strong>Unused connections get disabled.</strong> Azure Pipelines can disable Azure Resource Manager service connections that haven't been used for 100 days. A quarterly disaster-recovery pipeline that has been idle for months can fail on the day you need it, for a reason unrelated to federation. Run it on a schedule.</p>
+<h2>When a secret is still the only option</h2>
+<p>If your CI provider can issue OIDC tokens, a stored secret is a choice, not a constraint. A few cases still take that choice away:</p>
+<ul>
+<li><strong>The CI system can't issue OIDC tokens.</strong> Federation needs a signed token from the provider. Without one, there's nothing to exchange.</li>
+<li><strong>A Marketplace task doesn't support federation yet.</strong> Some third-party Azure DevOps tasks still expect a secret-based service connection. Replace the task, or keep that one connection on a secret until it's updated.</li>
+<li><strong>Your tenant restricts workload identity federation.</strong> The exchange fails with errors such as <code>AADSTS700223</code> or <code>AADSTS700238</code>, and only the tenant's administrators can change that.</li>
+</ul>
+<p>Some setups support federation but with caveats. GitHub Enterprise Server doesn't use immutable subjects, so renames and recycled names remain your problem. Sovereign clouds and multitenant app scenarios are excluded from the Azure DevOps move to the Entra issuer, so follow the guidance for your cloud.</p>
+<p>If you're stuck with a secret, give it the shortest expiry you can operate, the narrowest role, and an owner who isn't a single person.</p>
+<h2>What you end up with, and what to do from day one</h2>
+<p>After you migrate, there's no expiry date to track and no secret in a variable group. Nothing in the pipeline works on its own if it's copied. Access to production depends on GitHub environment protection rules and an RBAC assignment in Bicep that you can review in a pull request, not on a value someone pasted a year ago.</p>
+<p>Three things are worth doing from the start.</p>
+<p>First, declare the identities and federated credentials in Bicep from day one. Credentials created in the portal are hard to bring under review later. Who can deploy to production is a security decision, and it belongs in version control.</p>
+<p>Second, add an Azure Policy or a scheduled check that flags any app registration with a client secret in the tenant, and treat each one as a defect. Federation only helps if the secrets are actually deleted.</p>
+<p>Third, go further than this article and remove the remaining secrets from the applications themselves. Remember that a deploy identity with <code>Website Contributor</code> can read app settings, connection strings included. That's the same idea on the runtime side, which I covered in <a href="https://medium.com/@thecurlybrace/i-deleted-every-connection-string-from-our-azure-apps-managed-identity-did-the-rest-8313641344e4">I Deleted Every Connection String From Our Azure Apps</a>. A secret-free pipeline that deploys an app full of connection strings has only solved half the problem.</p>
+<p><img alt="60-Second Revision" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/pipeline-client-secret-workload-identity-federation-azure-devops-github-actions/images/05-revision.png" /></p>
+<blockquote>A secret you have to rotate is a secret you will eventually forget. Federate the trust, scope the role, and delete the secret.</blockquote>
+<p><strong>Do this today:</strong> open your Azure DevOps service connections and your GitHub repository secrets, and list every one that still holds a client secret, along with its expiry date. That list is your migration backlog, and the earliest expiry date is your deadline.</p>
+<p>My question for the responses: outside the cases above, is there any CI deployment to Azure where a long-lived client secret is still justified in 2026? I say no. Tell me I'm wrong.</p>
+<p><strong>Follow The Curly Brace for more backend war stories — no theory, only scars.</strong></p>
+</article></body></html>
