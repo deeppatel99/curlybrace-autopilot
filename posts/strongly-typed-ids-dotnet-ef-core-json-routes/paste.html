@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your OrderId Is Just a Guid. Nothing Stops You Passing a CustomerId.</title>
+<meta name="description" content="Strongly typed IDs turn a silent wrong-order refund into a compile error, and wiring them through EF Core, JSON and routes takes under twenty lines per ID.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}
+.banner button{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}
+.banner a{color:#1a1a1a}
+</style></head><body>
+<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>
+<article>
+<h1>Your OrderId Is Just a Guid. Nothing Stops You Passing a CustomerId.</h1>
+<h2 class="sub">Strongly typed IDs turn a silent wrong-order refund into a compile error, and wiring them through EF Core, JSON and routes takes under twenty lines per ID.</h2>
+<p><img alt="Your OrderId Is Just a Guid. Nothing Stops You Passing a CustomerId." src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/strongly-typed-ids-dotnet-ef-core-json-routes/images/01-cover.png" /></p>
+<p>It's 4:40 p.m. on a Thursday. Finance sends you one line: "Refund RF-20931 points at order 7c1e09a2… That order doesn't exist."</p>
+<p>The customer who asked for the refund has emailed twice. Their real order still shows as paid.</p>
+<p>You open the handler and find the bug in under a minute:</p>
+<pre>await refunds.IssueAsync(request.CustomerId, request.OrderId, request.Amount);</pre>
+<p>The signature is <code>IssueAsync(Guid orderId, Guid customerId, decimal amount)</code>. The refund service lives in its own database, has no foreign key back to orders, and wrote the row without complaint. The compiler saw two Guids going into two Guid slots and had no reason to object.</p>
+<p>There's a worse version of this bug. Swap <code>originalOrderId</code> and <code>replacementOrderId</code> and you refund a real order that belongs to the same customer. Nothing in the system flags it, and typed IDs alone won't either. We'll come back to that one at the end.</p>
+<p>So how do you make this mistake impossible to compile without burying the codebase in ceremony?</p>
+<h2>Every Guid looks the same to the compiler</h2>
+<p>Picture a server rack where every cable is grey and has the same connector. Power, network and storage all look alike, and all of them fit every port. Labels help until someone is tired. Keyed connectors fix it properly: an HDMI plug won't go into a USB-C port, however tired you are.</p>
+<p>A <code>Guid</code> is the grey cable. <code>OrderId</code>, <code>CustomerId</code> and <code>PaymentId</code> are all the same type to C#, so the type system can't tell you that you plugged one into the wrong slot. A strongly typed ID is the keyed connector. It holds the same 16 bytes but has a different type, so a mismatch fails at build time.</p>
+<p>The odds also get worse as signatures grow. With <em>n</em> ID types that share one primitive and meet in the same signatures, there are n(n-1)/2 pairs you can confuse. Three give you 3 pairs. Ten give you 45.</p>
+<h2>The type is under twenty lines</h2>
+<p>Use a <code>readonly record struct</code>. You get value equality, <code>==</code> and <code>GetHashCode</code> for free. It's a struct, so there's no heap allocation and no null to check. <code>readonly</code> means EF Core can snapshot and compare it safely.</p>
+<p>Start with a small interface. It gives the infrastructure code later in this article something generic to work with:</p>
+<pre>public interface IGuidId&lt;TSelf&gt; where TSelf : struct, IGuidId&lt;TSelf&gt;<br>{<br>    Guid Value { get; }<br>    static abstract TSelf From(Guid value);<br>}</pre>
+<p>Then the ID itself:</p>
+<pre>using System.Diagnostics.CodeAnalysis;<br>&nbsp;<br>public readonly record struct OrderId(Guid Value) : IGuidId&lt;OrderId&gt;, IParsable&lt;OrderId&gt;<br>{<br>    public static OrderId New() =&gt; new(Guid.NewGuid());<br>    public static OrderId From(Guid value) =&gt; new(value);<br>    public override string ToString() =&gt; Value.ToString();<br>&nbsp;<br>    public static OrderId Parse(string s, IFormatProvider? provider)<br>        =&gt; new(Guid.Parse(s, provider));<br>&nbsp;<br>    public static bool TryParse([NotNullWhen(true)] string? s,<br>        IFormatProvider? provider, out OrderId result)<br>    {<br>        var ok = Guid.TryParse(s, provider, out var value) &amp;&amp; value != Guid.Empty;<br>        result = new(value);<br>        return ok;<br>    }<br>}</pre>
+<p>Three things to notice:</p>
+<ul>
+<li><strong><code>static abstract</code></strong> needs C# 11 / .NET 7 or later. Everything here runs on .NET 10 (LTS) and .NET 11. If you're still on .NET 8, it went out of support on November 10, 2026.</li>
+<li><strong>The <code>ToString</code> override matters.</strong> A record struct's default <code>ToString</code> prints <code>OrderId { Value = 7c1e… }</code>. That ends up in your logs and in any URL you build from the ID.</li>
+<li><strong><code>IParsable&lt;T&gt;</code></strong> looks like overhead now. It pays off in the routing section below.</li>
+</ul>
+<p>Write <code>CustomerId</code> the same way, change the signature to <code>IssueAsync(OrderId orderId, CustomerId customerId, decimal amount)</code>, and the 4:40 p.m. bug becomes:</p>
+<pre>error CS1503: Argument 1: cannot convert from 'CustomerId' to 'OrderId'</pre>
+<p>That's the whole point of the pattern. The rest of the article is about getting the type through the three boundaries where it meets the outside world.</p>
+<p><img alt="Where a typed ID crosses a boundary" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/strongly-typed-ids-dotnet-ef-core-json-routes/images/02-table-1.png" /></p>
+<h2>EF Core: one converter for every ID</h2>
+<p>EF Core doesn't know what an <code>OrderId</code> is. A <a href="https://learn.microsoft.com/en-us/ef/core/modeling/value-conversions">value converter</a> tells it to store the type as a <code>uniqueidentifier</code> (or whatever your provider uses for <code>Guid</code>). Here is one generic converter that works for every ID type:</p>
+<pre>using Microsoft.EntityFrameworkCore.Storage.ValueConversion;<br>&nbsp;<br>public sealed class GuidIdConverter&lt;TId&gt; : ValueConverter&lt;TId, Guid&gt;<br>    where TId : struct, IGuidId&lt;TId&gt;<br>{<br>    public GuidIdConverter() : base(id =&gt; id.Value, value =&gt; Create(value)) { }<br>&nbsp;<br>    private static TId Create(Guid value) =&gt; TId.From(value);<br>}</pre>
+<p>The private <code>Create</code> method isn't decoration. Converters are expression trees, and C# won't let an expression tree call a static abstract member directly (error CS8927). Wrapping the call in an ordinary static method gets around that.</p>
+<p>Register the converter once per type in <code>ConfigureConventions</code> (EF Core 6+), not on every property:</p>
+<pre>using Microsoft.EntityFrameworkCore;<br>&nbsp;<br>public class ShopDb(DbContextOptions&lt;ShopDb&gt; options) : DbContext(options)<br>{<br>    public DbSet&lt;Order&gt; Orders =&gt; Set&lt;Order&gt;();<br>&nbsp;<br>    protected override void ConfigureConventions(ModelConfigurationBuilder builder)<br>    {<br>        builder.Properties&lt;OrderId&gt;().HaveConversion&lt;GuidIdConverter&lt;OrderId&gt;&gt;();<br>        builder.Properties&lt;CustomerId&gt;().HaveConversion&lt;GuidIdConverter&lt;CustomerId&gt;&gt;();<br>    }<br>&nbsp;<br>    protected override void OnModelCreating(ModelBuilder modelBuilder)<br>        =&gt; modelBuilder.Entity&lt;Order&gt;().Property(o =&gt; o.Id).ValueGeneratedNever();<br>}<br>&nbsp;<br>public class Order<br>{<br>    public OrderId Id { get; init; } = OrderId.New();<br>    public CustomerId CustomerId { get; init; }<br>}</pre>
+<p>The <code>ValueGeneratedNever()</code> call is deliberate. The domain creates the ID, so EF Core shouldn't try. Key generation for converted keys only arrived in EF Core 7, and the docs still say value generation isn't supported for most converted keys. Creating the ID yourself means you don't depend on it.</p>
+<p>That choice has a cost. For a plain <code>Guid</code> key, the SQL Server provider generates sequential GUIDs on the client by default. <code>Guid.NewGuid()</code> is random, so a clustered primary key on <code>uniqueidentifier</code> will fragment. If that matters to you, generate ordered values in <code>New()</code> instead, either with a sequential GUID generator or with <code>Guid.CreateVersion7()</code> on .NET 9+. Be aware that SQL Server sorts <code>uniqueidentifier</code> by its last bytes first, so v7 GUIDs aren't fully sequential there either.</p>
+<p>Queries read the way you'd hope: <code>db.Orders.Where(o =&gt; o.CustomerId == customerId)</code>. If a method takes a <code>CustomerId</code> and you pass an <code>OrderId</code>, that query doesn't compile either.</p>
+<h2>JSON: the contract you'll break without noticing</h2>
+<p>This trap catches people who did everything else right. Without a converter, System.Text.Json serializes the record struct's public property, and your API response changes from this:</p>
+<pre>{ &quot;orderId&quot;: &quot;7c1e09a2-4b7d-4f0e-9d51-2a8c3e6b1f40&quot; }</pre>
+<p>to this:</p>
+<pre>{ &quot;orderId&quot;: { &quot;value&quot;: &quot;7c1e09a2-4b7d-4f0e-9d51-2a8c3e6b1f40&quot; } }</pre>
+<p>Your tests still pass, because they deserialize with the same types. Your mobile client breaks. One generic <a href="https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/converters-how-to">custom converter</a> keeps the wire format as a plain string:</p>
+<pre>using System.Text.Json;<br>using System.Text.Json.Serialization;<br>&nbsp;<br>public sealed class GuidIdJsonConverter&lt;TId&gt; : JsonConverter&lt;TId&gt;<br>    where TId : struct, IGuidId&lt;TId&gt;<br>{<br>    public override TId Read(ref Utf8JsonReader reader, Type typeToConvert,<br>        JsonSerializerOptions options) =&gt; TId.From(reader.GetGuid());<br>&nbsp;<br>    public override void Write(Utf8JsonWriter writer, TId value,<br>        JsonSerializerOptions options) =&gt; writer.WriteStringValue(value.Value);<br>}</pre>
+<p>Put <code>[JsonConverter(typeof(GuidIdJsonConverter&lt;OrderId&gt;))]</code> on the <code>OrderId</code> declaration. Putting it on the type rather than in <code>JsonSerializerOptions</code> means it applies wherever the type is serialized, including places that build their own options. If you use typed IDs as dictionary keys, you'll also need to override <code>ReadAsPropertyName</code> and <code>WriteAsPropertyName</code>.</p>
+<p>The wire format isn't the last boundary. Your OpenAPI document is what generated clients are built from, and the generator may still describe <code>OrderId</code> as an object with a <code>value</code> property, even though the converter sends a string. Check the generated schema, and if it's wrong, map typed IDs to <code>string</code> with format <code>uuid</code>: a schema transformer in Microsoft.AspNetCore.OpenApi, or <code>MapType</code> in Swashbuckle. The exact API differs between versions, so check the docs for the one you target.</p>
+<h2>Routes: the ID binds itself</h2>
+<p>This is where <code>IParsable&lt;T&gt;</code> pays off. Minimal APIs bind any route, query or header parameter whose type has a static <code>TryParse</code>. That has worked since .NET 6, and <a href="https://learn.microsoft.com/en-us/aspnet/core/release-notes/aspnetcore-7.0">MVC controllers gained the same ability in .NET 7</a>. So this just works:</p>
+<pre>app.MapGet(&quot;/orders/{orderId}&quot;, async (OrderId orderId, ShopDb db, CancellationToken ct) =&gt;<br>    await db.Orders.SingleOrDefaultAsync(o =&gt; o.Id == orderId, ct) is { } order<br>        ? Results.Ok(order)<br>        : Results.NotFound());</pre>
+<p>You don't need <code>Guid.Parse</code> in the handler or a custom model binder. When parsing fails, <a href="https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/parameter-binding">minimal APIs return a 400</a> before your code runs. Bad input is rejected at the edge instead of three layers down.</p>
+<h2>My hot take: the "ceremony" argument loses at the first pair</h2>
+<p>The objection is fair. Each ID type costs under twenty lines, plus a <code>[JsonConverter]</code> attribute and a registration line in <code>ConfigureConventions</code>. Compared with typing <code>Guid</code>, that's ceremony.</p>
+<p>But look at where the cost falls. The converters are written once. Each new ID is a short file you copy, and it never changes again. The bug it prevents doesn't show up in testing. It shows up as bad data in production, found by someone outside engineering, often days later. You're trading a one-time cost against a recurring and unpredictable one.</p>
+<p>So don't count aggregates in your domain. Count the IDs that meet in the same signatures. The refund bug needed only one pair: an <code>OrderId</code> and a <code>CustomerId</code> side by side, with sensible parameter names, and it still got through review. My rule of thumb: wrap an ID the first time it appears in a signature next to another ID of the same primitive type, especially on a money path. If you read <a href="https://medium.com/@thecurlybrace/your-abstract-base-class-is-lying-to-the-compiler-525ea09135ca">Your Abstract Base Class Is Lying to the Compiler</a>, this is the same instinct: tell the compiler the truth and it will check that truth for you.</p>
+<p>If the boilerplate still bothers you, source generators such as <a href="https://github.com/andrewlock/StronglyTypedId">StronglyTypedId</a> and Vogen will write it for you. The trade-off is another dependency, plus generated code your team has to understand when it misbehaves.</p>
+<h2>Where it still bites</h2>
+<p>To be honest about it, the EF Core docs show this pattern with a hedge: "Showing this pattern does not mean we recommend it." Their suggestion is to "consider using navigations and generated keys instead of dealing with key values directly." That works inside one <code>DbContext</code>. It does nothing for IDs that cross service boundaries: the refund service from the opening has no foreign key back to orders, so there's no navigation to use. That's where typed IDs earn their keep. Still, the docs are right that the pattern isn't free. Here are the sharp edges.</p>
+<h3><code>default(OrderId)</code> is a real value</h3>
+<p>A struct can't forbid its default value. <code>new OrderId()</code> compiles and gives you <code>Guid.Empty</code>. The <code>TryParse</code> above already rejects <code>Guid.Empty</code>, so an empty ID can't come in through a route or query. For everything else, put the guard in <code>From</code> and have it throw on <code>Guid.Empty</code>. The EF Core and JSON converters both go through <code>From</code>, so that guard also catches empty IDs in request bodies and bad rows in the database. The positional constructor still bypasses it, so create IDs through <code>New()</code> and <code>From</code> in your own code.</p>
+<h3>Don't reach for <code>.Value</code> in LINQ</h3>
+<p><code>o.Id == orderId</code> translates to SQL. <code>o.Id.Value == someGuid</code> doesn't, because EF Core <a href="https://learn.microsoft.com/en-us/ef/core/modeling/value-conversions">can't query into members of a value-converted type</a>. Compare whole IDs, never their insides.</p>
+<h3>Raw SQL wants primitives</h3>
+<p>Raw SQL APIs don't accept parameters of value-converted types. Pass <code>orderId.Value</code> to <code>FromSql</code> and <code>ExecuteSql</code>. This is the one place where you deliberately take the ID back out of its type.</p>
+<h3>Two IDs of the same type still swap</h3>
+<p>Back to the worse bug from the opening. <code>originalOrderId</code> and <code>replacementOrderId</code> are both <code>OrderId</code>, so swapping them still compiles. Typed IDs only catch swaps between <em>different</em> ID types. For same-type pairs, make the call site say which is which. Named arguments help (<code>IssueReplacementAsync(original: a, replacement: b)</code>), but nothing forces callers to use them. A parameter object such as <code>record ReplacementRequest(OrderId Original, OrderId Replacement)</code> is stronger, because the roles live in property names that every caller has to write.</p>
+<h3>Don't wrap everything</h3>
+<p>IDs that cross aggregate boundaries are where the pattern earns its keep. Wrapping every <code>int</code> and <code>string</code> in your codebase gives you the ceremony without the payoff. Start with the IDs that appear in method signatures next to other IDs.</p>
+<blockquote>If two parameters can be swapped without a compiler error, sooner or later someone will swap them in production.</blockquote>
+<p>Tonight, search your codebase for method signatures with two or more <code>Guid</code> parameters. Each one is a possible swap. Start with the one that touches money.</p>
+<p>Struct or class for your IDs, and would you ever wrap an <code>int</code> identity key? Tell me I'm wrong.</p>
+<p><strong>Follow The Curly Brace for more backend war stories — no theory, only scars.</strong></p>
+</article></body></html>
