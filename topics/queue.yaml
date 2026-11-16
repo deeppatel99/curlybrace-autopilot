@@ -88,5 +88,53 @@
     in a method call, then builds strongly typed IDs with readonly record structs, EF Core value converters,
     JSON and route binding; the stance is that they pay for themselves in any domain with more than three
     aggregates, despite the 'ceremony' objection.
+  status: done
+  auto: true
+  done_on: '2026-11-16'
+  slug: strongly-typed-ids-dotnet-ef-core-json-routes
+- topic: .NET 11 Shipped on November 10. It's STS. Should Your .NET 10 LTS Services Move to It?
+  track: csharp
+  format: news
+  notes: It opens with a team on .NET 10 LTS looking at the GA announcement and its two-year support window,
+    then argues that most production services should stay on LTS while new and short-lived services adopt
+    .NET 11, judging Runtime Async, EF Core 11 and ASP.NET Core async validation by what they're worth
+    after an upgrade rather than by how they look in a keynote demo.
+  status: pending
+  auto: true
+- topic: Page 1 Loads in 20ms. Page 5,000 Takes 9 Seconds. OFFSET vs Keyset Pagination.
+  track: sql
+  format: versus
+  notes: It opens with an admin grid that gets slower the deeper anyone pages and an export job that times
+    out, and argues that keyset pagination should be the default for any list that can grow, keeping OFFSET/FETCH
+    only for small, bounded result sets where users really need to jump to page N, with execution plans
+    and the EF Core code for both.
+  status: pending
+  auto: true
+- topic: Azure Container Apps or App Service? We Moved an API Twice to Find Out.
+  track: azure
+  format: versus
+  notes: It opens with an ASP.NET Core API and background workers moved from App Service to Container
+    Apps and then partly back, and argues that App Service is still the right home for a plain web API
+    while Container Apps wins only when you need scale-to-zero, KEDA event scaling or several cooperating
+    containers, comparing cold starts, cost, deployment slots and networking.
+  status: pending
+  auto: true
+- topic: Our Distributed Trace Stopped at the Service Bus. OpenTelemetry Wasn't Broken. Our Propagation
+    Was.
+  track: devops
+  format: bug-hunt
+  notes: It opens with an Application Insights end-to-end transaction view that ends at the queue publish,
+    so a failed order shows up as two unrelated traces, then follows the missing traceparent through message
+    properties to the consumer and argues that you have to own context propagation across async boundaries
+    yourself instead of trusting auto-instrumentation.
+  status: pending
+  auto: true
+- topic: We Exposed Our Internal API to Copilot as an MCP Server in C#. Authorization Was the Hard Part.
+  track: ai
+  format: build-log
+  notes: It opens with a team wiring their order-lookup API into an MCP server so AI assistants can query
+    it, then walks through building it with the official C# MCP SDK, and argues that tool definitions
+    take an afternoon while the real work is per-user auth, read-only scoping and audit logging, which
+    is what stops an agent from becoming an unauthenticated admin console.
   status: pending
   auto: true

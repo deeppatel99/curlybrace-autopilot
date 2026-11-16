@@ -1,6 +1,11 @@
 # Articles already live on Medium (newest first). Kept current from the RSS feed.
 # The planner never repeats these; the writer links related ones.
 
+- date: '2026-11-11'
+  title: Your Pipeline’s Client Secret Will Expire. Workload Identity Federation Deletes It.
+  subtitle: How to move Azure DevOps and GitHub Actions to OIDC with scoped identities and exact subject claims, plus the
+    gotchas that will still…
+  url: https://medium.com/@thecurlybrace/your-pipelines-client-secret-will-expire-workload-identity-federation-deletes-it-90336a486713
 - date: '2026-11-02'
   title: A Support Agent and a Service Edited the Same Order. The Second Save Silently Erased the First.
   subtitle: Optimistic concurrency with rowversion should be your default, and UPDLOCK belongs on exactly one kind of row.
