@@ -1,6 +1,11 @@
 # Articles already live on Medium (newest first). Kept current from the RSS feed.
 # The planner never repeats these; the writer links related ones.
 
+- date: '2026-11-16'
+  title: Your OrderId Is Just a Guid. Nothing Stops You Passing a CustomerId.
+  subtitle: Strongly typed IDs turn a silent wrong-order refund into a compile error, and wiring them through EF Core, JSON
+    and routes takes under…
+  url: https://medium.com/@thecurlybrace/your-orderid-is-just-a-guid-nothing-stops-you-passing-a-customerid-ec501fc13cb6
 - date: '2026-11-11'
   title: Your Pipeline’s Client Secret Will Expire. Workload Identity Federation Deletes It.
   subtitle: How to move Azure DevOps and GitHub Actions to OIDC with scoped identities and exact subject claims, plus the

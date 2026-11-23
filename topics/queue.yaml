@@ -99,8 +99,10 @@
     then argues that most production services should stay on LTS while new and short-lived services adopt
     .NET 11, judging Runtime Async, EF Core 11 and ASP.NET Core async validation by what they're worth
     after an upgrade rather than by how they look in a keynote demo.
-  status: pending
+  status: done
   auto: true
+  done_on: '2026-11-23'
+  slug: net-11-sts-vs-net-10-lts-same-end-date-should-you-move
 - topic: Page 1 Loads in 20ms. Page 5,000 Takes 9 Seconds. OFFSET vs Keyset Pagination.
   track: sql
   format: versus
