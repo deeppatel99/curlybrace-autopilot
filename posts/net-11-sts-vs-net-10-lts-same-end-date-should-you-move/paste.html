@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>.NET 11 and Your .NET 10 LTS Lose Support the Same Day. Should You Move?</title>
+<meta name="description" content="An STS release now ends support the same day as the LTS before it, so the real cost is one extra upgrade before .NET 12, and only some of your services will get enough back to pay for it.">
+<style>
+body{max-width:740px;margin:40px auto;padding:0 20px;font:19px/1.65 Georgia,serif;color:#1a1a1a;background:#fff}
+h1{font:700 40px/1.2 -apple-system,Segoe UI,Inter,sans-serif;margin:0 0 8px}
+h2{font:700 26px/1.3 -apple-system,Segoe UI,Inter,sans-serif;margin:40px 0 10px}
+h2.sub{font-weight:400;color:#6b6b6b;font-size:22px;margin-top:0}
+img{max-width:100%;height:auto;display:block;margin:28px auto;border-radius:6px}
+pre{background:#f4f4f4;padding:16px;overflow:auto;border-radius:4px;font-size:15px;line-height:1.5}
+code{font-family:Menlo,Consolas,monospace;font-size:.88em}
+blockquote{border-left:3px solid #1a1a1a;margin:0;padding-left:20px;font-style:italic}
+hr{border:0;text-align:center;margin:36px 0}hr:after{content:"...";letter-spacing:.6em;color:#999}
+.banner{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#fff7d6;border:1px solid #e6d27a;padding:12px 16px;border-radius:6px;margin-bottom:30px;user-select:none;-webkit-user-select:none}
+.banner button{font:600 16px -apple-system,Segoe UI,sans-serif;background:#1a8917;color:#fff;border:0;border-radius:20px;padding:10px 22px;cursor:pointer;margin-right:12px}
+.banner a{color:#1a1a1a}
+</style></head><body>
+<div class="banner">
+<button id="copy" onclick="copyArticle()">Copy article</button>
+<a href="https://medium.com/new-story" target="_blank" rel="noopener">Open a new Medium story &#8599;</a>
+<div id="msg" style="margin-top:8px">Copies title, text, images, GIFs and code. Then paste into the new story.</div>
+</div>
+<script>
+function copyArticle() {
+  var a = document.querySelector('article'), sel = getSelection(), r = document.createRange();
+  var msg = function (t) { document.getElementById('msg').textContent = t; };
+  var done = 'Copied! Paste it into the new Medium story (Ctrl+V, or long-press then Paste on mobile).';
+  r.selectNodeContents(a); sel.removeAllRanges(); sel.addRange(r);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  sel.removeAllRanges();
+  if (ok) return msg(done);
+  if (navigator.clipboard && window.ClipboardItem) {
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([a.innerHTML], {type: 'text/html'}),
+      'text/plain': new Blob([a.innerText], {type: 'text/plain'})
+    })]).then(function () { msg(done); }, function () { msg('Copy was blocked. Select the article and copy it manually.'); });
+  } else msg('Copy is not supported here. Select the article and copy it manually.');
+}
+</script>
+<article>
+<h1>.NET 11 and Your .NET 10 LTS Lose Support the Same Day. Should You Move?</h1>
+<h2 class="sub">An STS release now ends support the same day as the LTS before it, so the real cost is one extra upgrade before .NET 12, and only some of your services will get enough back to pay for it.</h2>
+<p><img alt=".NET 11 and Your .NET 10 LTS Lose Support the Same Day. Should You Move?" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/net-11-sts-vs-net-10-lts-same-end-date-should-you-move/images/01-cover.png" /></p>
+<p>It's the Tuesday after .NET Conf. Someone drops the GA announcement into the team channel.</p>
+<p>"STS," says the first reply. "Hard pass. We're on LTS."</p>
+<p>Four thumbs up.</p>
+<p>Then someone opens the support policy page. The .NET 10 row and the .NET 11 row end on the same date: November 14, 2028.</p>
+<p>If support length doesn't separate them any more, what should decide whether your production services move?</p>
+<p>I asked a version of this question before launch, in <a href="https://medium.com/@thecurlybrace/net-11-rc2-has-a-go-live-license-should-you-ship-it-before-november-10-1bd237b07f7d">.NET 11 RC2 Has a Go-Live License. Should You Ship It Before November 10?</a>. Now the release is final, and this time the question is about your production services.</p>
+<h2>What shipped, in two sentences</h2>
+<p><a href="https://devblogs.microsoft.com/dotnet/announcing-dotnet-11/">.NET 11 reached general availability on November 10, 2026</a>, with C# 15, EF Core 11 and ASP.NET Core 11. It's an STS release with two years of support and the same servicing as LTS.</p>
+<h2>The support argument just died. The upgrade argument didn't.</h2>
+<p>STS support got longer recently. In September 2025 Microsoft <a href="https://devblogs.microsoft.com/dotnet/dotnet-sts-releases-supported-for-24-months/">extended STS support from 18 to 24 months</a>, starting with .NET 9. Here's how it plays out on the <a href="https://dotnet.microsoft.com/platform/support/policy/dotnet-core">official support policy page</a>:</p>
+<p><img alt=".NET support windows, as of November 2026" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/net-11-sts-vs-net-10-lts-same-end-date-should-you-move/images/02-table-1.png" /></p>
+<p>Think of it as two leases that end on the same day. If you stay on .NET 10, you move house once, to .NET 12, at some point before November 2028. If you move to .NET 11 now, you move twice inside the same two years: into 11 today, then on to 12 later.</p>
+<p>One caveat to the analogy: the boxes don't double. Breaking changes carry forward, so a service that jumps from 10 straight to 12 still has to work through every .NET 11 and EF Core 11 breaking change. The EF Core docs tell you to review earlier breaking changes when you skip versions. Moving to 11 now mostly moves that work earlier rather than doubling it. The true extra cost is one more retarget, test and deploy cycle, plus working against changes that haven't settled yet.</p>
+<p>Moving twice can still be the right call, if the new place is enough better to be worth that extra cycle. That gives us the real question for each service: does what .NET 11 gives you after the upgrade pay for one extra migration?</p>
+<p>If the annual cadence holds, .NET 12 will be the next LTS and arrive in November 2027. That's the usual pattern, not a promise. If it holds, a .NET 10 service has a full year to jump straight to 12.</p>
+<p><img alt="Stay on 10 vs move to 11" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/net-11-sts-vs-net-10-lts-same-end-date-should-you-move/images/03-diagram-compare-1.png" /></p>
+<p>So let's judge the headline features by what they're worth in your service after the upgrade, not by how they look in a keynote demo.</p>
+<h2>Runtime Async: you already have half of it</h2>
+<p>Runtime Async moves async suspension and resumption out of compiler-generated state machines and into the runtime. The keynote version is cleaner stack traces and less overhead.</p>
+<p>What the release notes actually say:</p>
+<ul>
+<li><strong>For your code, it's still a preview feature.</strong> You opt in per project. On <code>net11.0</code> you no longer need <code>EnablePreviewFeatures</code>.</li>
+<li><strong>The runtime libraries are already compiled with it.</strong> Once your service runs on .NET 11, the BCL code under your awaits uses the new model whether or not you opt in.</li>
+<li><strong>Exception stack traces don't change.</strong> They already looked clean. The improvement is in <em>live</em> stacks: profilers, the debugger's call stack window, <code>new StackTrace()</code>.</li>
+</ul>
+<p>Opting in looks like this:</p>
+<pre>&lt;PropertyGroup&gt;<br>  &lt;TargetFramework&gt;net11.0&lt;/TargetFramework&gt;<br>  &lt;Features&gt;runtime-async=on&lt;/Features&gt;<br>&lt;/PropertyGroup&gt;</pre>
+<p>The old <code>DOTNET_RuntimeAsync</code> environment variable is gone. To opt a project out, set <code>&lt;UseRuntimeAsync&gt;false&lt;/UseRuntimeAsync&gt;</code>.</p>
+<p><strong>My verdict:</strong> this is a real improvement that will matter more by .NET 12. But "turn on a preview compiler feature in a production service" is a decision for each service, made on purpose. It's not a reason to migrate on its own.</p>
+<h2>Async validation: real, unless you're on controllers</h2>
+<p>This is the one I'd actually miss. Here's the pattern many .NET 10 codebases contain, because <code>IsValid</code> is synchronous:</p>
+<pre>using System.ComponentModel.DataAnnotations;<br>using System.Threading;<br>using System.Threading.Tasks;<br>using Microsoft.Extensions.DependencyInjection;<br>&nbsp;<br>public interface ISkuCatalog<br>{<br>    Task&lt;bool&gt; ExistsAsync(string sku, CancellationToken ct);<br>}<br>&nbsp;<br>// .NET 10: the only way to do I/O here is to block<br>public sealed class KnownSkuAttribute : ValidationAttribute<br>{<br>    protected override ValidationResult? IsValid(object? value, ValidationContext context)<br>    {<br>        if (value is not string sku) return ValidationResult.Success;<br>&nbsp;<br>        var catalog = context.GetRequiredService&lt;ISkuCatalog&gt;();<br>        bool exists = catalog.ExistsAsync(sku, CancellationToken.None).Result;<br>&nbsp;<br>        return exists ? ValidationResult.Success : new ValidationResult(&quot;Unknown SKU.&quot;, [context.MemberName!]);<br>    }<br>}</pre>
+<p>That <code>.Result</code> holds a thread-pool thread for the whole database round trip, on every request. (I covered what that does under load in <a href="https://medium.com/@thecurlybrace/one-innocent-line-result-froze-my-entire-api-i-was-blocking-async-without-knowing-it-8be867b6f4fd">One Innocent Line (.Result) Froze My Entire API</a>.)</p>
+<p>In .NET 11 you derive from <code>AsyncValidationAttribute</code> instead:</p>
+<pre>using System;<br>using System.ComponentModel.DataAnnotations;<br>using System.Threading;<br>using System.Threading.Tasks;<br>using Microsoft.Extensions.DependencyInjection;<br>&nbsp;<br>// .NET 11: same ISkuCatalog as above<br>public sealed class KnownSkuAttribute : AsyncValidationAttribute<br>{<br>    public KnownSkuAttribute() =&gt; ErrorMessage = &quot;Unknown SKU.&quot;;<br>&nbsp;<br>    protected override async Task&lt;ValidationResult?&gt; IsValidAsync(<br>        object? value, ValidationContext context, CancellationToken ct)<br>    {<br>        if (value is not string sku || string.IsNullOrWhiteSpace(sku))<br>            return ValidationResult.Success;<br>&nbsp;<br>        var catalog = context.GetRequiredService&lt;ISkuCatalog&gt;();<br>&nbsp;<br>        return await catalog.ExistsAsync(sku, ct)<br>            ? ValidationResult.Success<br>            : new ValidationResult(FormatErrorMessage(context.DisplayName), [context.MemberName!]);<br>    }<br>&nbsp;<br>    // Required override. Throwing makes an accidental sync call fail loudly.<br>    protected override ValidationResult? IsValid(object? value, ValidationContext context)<br>        =&gt; throw new InvalidOperationException(&quot;Synchronous validation isn't supported.&quot;);<br>}</pre>
+<p>Register it with <code>builder.Services.AddValidation();</code> and Minimal APIs validate the request before your handler runs.</p>
+<p>The parts the demo skips are in the <a href="https://learn.microsoft.com/en-us/aspnet/core/fundamentals/validation?view=aspnetcore-11.0">ASP.NET Core validation docs</a>:</p>
+<ul>
+<li><strong>It doesn't cover MVC.</strong> <code>Microsoft.Extensions.Validation</code> serves Minimal APIs and Blazor. The docs say it isn't supported for MVC or Razor Pages. If your service is built on controllers, this feature isn't for you yet.</li>
+<li><strong>Minimal APIs always take the async path.</strong> That's why the throwing <code>IsValid</code> above is safe there.</li>
+<li><strong>Async validators can run in parallel, in no guaranteed order.</strong> Don't write rules that depend on each other. Be careful when two of them resolve the same scoped <code>DbContext</code>, because a <code>DbContext</code> doesn't support concurrent operations.</li>
+<li><strong>Missing metadata fails silently.</strong> If the source generator never sees your type, no validation runs, and nothing is logged.</li>
+</ul>
+<h2>EF Core 11: the upgrade that touches your data</h2>
+<p>EF Core 11 requires .NET 11, so you can't get it on your LTS services. What it brings: fewer unnecessary joins in more reference-navigation and split-query cases, better <code>GroupBy</code> translation, <code>FullJoin</code> translation on relational providers that support it, and complex types and JSON columns on TPT and TPC hierarchies. SQL Server vector search is still experimental.</p>
+<p>Useful, but the <a href="https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-11.0/breaking-changes">EF Core 11 breaking changes</a> are where your time will go.</p>
+<p><strong>Microsoft.Data.SqlClient 7.0 moves Entra ID auth into a separate package.</strong> If your connection strings use <code>Active Directory Default</code> or <code>Active Directory Managed Identity</code>, you now need this:</p>
+<pre>&lt;PackageReference Include=&quot;Microsoft.Data.SqlClient.Extensions.Azure&quot; Version=&quot;7.0.4&quot; /&gt;</pre>
+<p>Match the version to the Microsoft.Data.SqlClient your build resolves. The docs show a version number that isn't published on NuGet, and pointing at a missing version gives you warning NU1603, which fails builds that use <code>TreatWarningsAsErrors</code>.</p>
+<p>This also hits services that don't use EF, through Microsoft.Extensions.Caching.SqlServer: <a href="https://learn.microsoft.com/en-us/aspnet/core/breaking-changes/11/sqlclient-azure-extensions-required">ASP.NET Core 11 pulls in SqlClient 7.x</a>, so <code>DistributedSqlServerCache</code> and any other SqlClient path that uses Entra ID needs the package too.</p>
+<p>If you followed <a href="https://medium.com/@thecurlybrace/i-deleted-every-connection-string-from-our-azure-apps-managed-identity-did-the-rest-8313641344e4">I Deleted Every Connection String From Our Azure Apps</a>, this is the change that breaks your managed identity login after the upgrade. It's one line to fix, and you only find it if you test against a real Azure SQL database.</p>
+<p>Three more to check:</p>
+<ul>
+<li><strong>The default SQL Server compatibility level is now 160</strong> (SQL Server 2022). EF can emit <code>LEAST</code> and <code>GREATEST</code>. If your database runs at a lower level, set <code>UseCompatibilityLevel(150)</code> explicitly.</li>
+<li><strong>Split queries now throw <code>DbQueryConcurrencyException</code></strong> when rows change between their statements. Before, you silently got empty collections. That's a fix, but it adds a new exception in production.</li>
+<li><strong>Cosmos DB: unmapped JSON properties are no longer preserved.</strong> Microsoft rates this High impact. If other writers add fields EF doesn't map, saving through EF now drops them.</li>
+</ul>
+<p>(On unions: C# 15 is the default language version for net11.0. I made the case for them in <a href="https://medium.com/@thecurlybrace/the-one-c-15-keyword-that-will-delete-your-result-t-class-88cd5a053f09">The One C# 15 Keyword That Will Delete Your Result<T> Class</a>, so I won't repeat it here.)</p>
+<h2>The fine print the launch posts skip</h2>
+<p>The <a href="https://learn.microsoft.com/dotnet/core/compatibility/11">.NET 11 breaking changes page</a> is long, and most of it won't touch a backend API. These are the entries I'd check first:</p>
+<p><img alt=".NET 11 changes that hit backend services" src="https://raw.githubusercontent.com/deeppatel99/curlybrace-autopilot/main/posts/net-11-sts-vs-net-10-lts-same-end-date-should-you-move/images/04-table-2.png" /></p>
+<p>ASP.NET Core 11 lets you pick an earlier OpenAPI version if your tooling needs one. There's no compatibility switch for the configuration change.</p>
+<p><strong>Azure Functions:</strong> <a href="https://techcommunity.microsoft.com/blog/appsonazureblog/-net-11-is-now-generally-available-in-azure-functions/4571176">.NET 11 support was announced on launch day</a>, but only for the isolated worker model. Any project that targets net11.0 must switch its project SDK to <code>Azure.Functions.Sdk</code> 1.0.1 or later and use <code>Microsoft.Azure.Functions.Worker</code> 2.50.0 or later. If you're still on Linux Consumption, read <em>Your Azure Functions Lose Support on November 10, 2026</em> first, because that plan doesn't run .NET 10 or later. In a reply under the announcement, Microsoft said the Windows rollout would reach public cloud regions by November 17 and sovereign clouds by November 20. Both dates have now passed.</p>
+<h2>Who should move now, and who should wait (my opinion)</h2>
+<p>Here's the reasoning behind it.</p>
+<p><strong>Move to .NET 11 now:</strong></p>
+<ul>
+<li><strong>New services.</strong> You have no baseline to protect and no migration to pay for. Starting a service on 10 today means planning a migration you didn't need.</li>
+<li><strong>Short-lived services.</strong> Event-specific APIs, migration workers, anything that will be retired before 2028. The support end date is the same, so STS costs you nothing.</li>
+<li><strong>Minimal API services with I/O in validation.</strong> Deleting a <code>.Result</code> from every request path is a real return on the upgrade.</li>
+<li><strong>Teams that already upgrade every November.</strong> For you the extra move isn't extra. It's just the routine, and each annual jump stays small.</li>
+</ul>
+<p><strong>Stay on .NET 10 and jump to 12:</strong></p>
+<ul>
+<li><strong>Stable controller-based services.</strong> Async validation doesn't apply to MVC, Runtime Async is preview, and the rest isn't worth a second migration.</li>
+<li><strong>Anything using the EF Core Cosmos provider with documents other systems write to.</strong> Wait until you've mapped every field or moved those paths to <code>CosmosClient</code>.</li>
+<li><strong>Services you can't fully test against real infrastructure.</strong> Most of the changes listed above only appear in production-like environments.</li>
+</ul>
+<blockquote>.NET 11 doesn't cost you support time. It costs you one extra test-and-deploy cycle, not a second list of breaking changes. Make each service earn it with a feature it will actually use.</blockquote>
+<p>Before anyone bumps a <code>TargetFramework</code> today, search your solution for <code>UseConcurrencyLimiter</code>, <code>AsSplitQuery</code> and <code>QuerySplittingBehavior.SplitQuery</code>, and search your App Settings and Key Vault for <code>Authentication=Active Directory</code>. Those searches will tell you how expensive the move really is.</p>
+<p>Annual upgrades or LTS-to-LTS: which one does your team actually run, and would you defend it after reading that table? Tell me I'm wrong.</p>
+<p><strong>Follow The Curly Brace for more backend war stories — no theory, only scars.</strong></p>
+</article></body></html>
